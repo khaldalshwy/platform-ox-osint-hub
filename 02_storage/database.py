@@ -22,9 +22,11 @@ class OSINTDatabase:
     def __init__(self, db_path: Optional[str] = None):
         self.db_path = db_path or DB_FILE
         # إذا تم تمرير مسار مخصص (مثل ملفات الاختبار المؤقتة)، نستخدم SQLite المخصص مباشرة
-        force_local = db_path is not None and os.path.abspath(db_path) != os.path.abspath(DB_FILE)
-        self.adapter = DatabaseAdapter(sqlite_path=self.db_path, force_sqlite=force_local)
+        self._force_local = db_path is not None and os.path.abspath(db_path) != os.path.abspath(DB_FILE)
+        self.adapter = DatabaseAdapter(sqlite_path=self.db_path, force_sqlite=self._force_local)
         self._init_sqlite()
+        if not self._force_local:
+            self._seed_if_empty()
 
     def is_turso_active(self) -> bool:
         return self.adapter.is_turso_enabled()
@@ -184,6 +186,30 @@ class OSINTDatabase:
             );
             """)
             conn.commit()
+
+    def _seed_if_empty(self):
+        """بذر تلقائي للبيانات الموثقة عند التشغيل لأول مرة في بيئة سحابية فارغة (مثل Streamlit Community Cloud)"""
+        seed_path = os.path.join(os.path.dirname(_STORAGE_DIR), "cloud_seed.json")
+        if not os.path.exists(seed_path):
+            return
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT COUNT(*) as c FROM osint_events")
+                row = cursor.fetchone()
+                if row and int(row["c"]) > 0:
+                    return
+            import json
+            with open(seed_path, "r", encoding="utf-8") as f:
+                seed = json.load(f)
+            for ev in seed.get("events", []):
+                self.add_event(ev)
+            for v in seed.get("vessels", []):
+                self.upsert_vessel(v)
+            for rj in seed.get("rejected", []):
+                self.add_rejected_news(rj)
+        except Exception:
+            pass
 
     def add_source(self, name: str, source_type: str, url: str, credibility: float = 0.8, country: str = "اليمن") -> int:
         with self._get_connection() as conn:

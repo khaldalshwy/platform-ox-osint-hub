@@ -19,3 +19,4 @@ for sub in ["01_acquisition", "02_storage", "03_processing", "04_orchestration",
 
 STREAMLIT_APP_PATH = os.path.join(ROOT_DIR, "06_presentation", "streamlit_app", "app.py")
 runpy.run_path(STREAMLIT_APP_PATH, run_name="__main__")
+

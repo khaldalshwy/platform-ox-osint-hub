@@ -287,3 +287,4 @@ class DatabaseAdapter:
         conn = sqlite3.connect(self.sqlite_path)
         conn.row_factory = sqlite3.Row
         return conn
+

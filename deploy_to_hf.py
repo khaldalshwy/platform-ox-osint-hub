@@ -10,6 +10,7 @@
 
 import os
 import sys
+import time
 import argparse
 
 
@@ -32,13 +33,21 @@ def main():
     root_dir = os.path.dirname(os.path.abspath(__file__))
 
     print(f"[*] جاري إنشاء/التحقق من مساحة Hugging Face Space: {args.repo_id} ...")
-    api.create_repo(
-        repo_id=args.repo_id,
-        repo_type="space",
-        space_sdk="streamlit",
-        private=False,
-        exist_ok=True,
-    )
+    for attempt in range(5):
+        try:
+            api.create_repo(
+                repo_id=args.repo_id,
+                repo_type="space",
+                space_sdk="static",
+                private=False,
+                exist_ok=True,
+            )
+            break
+        except Exception as e:
+            if attempt == 4:
+                raise
+            print(f"  [!] إعادة محاولة الاتصال بـ Hugging Face ({attempt + 1}/5): {type(e).__name__}")
+            time.sleep(2)
 
     # إضافة الأسرار في حال تمريرها
     if args.turso_url:
@@ -49,27 +58,36 @@ def main():
         api.add_space_secret(repo_id=args.repo_id, key="AISSTREAM_API_KEY", value=args.ais_key)
 
     print("[*] جاري رفع ملفات المنصة إلى السحابة...")
-    api.upload_folder(
-        folder_path=root_dir,
-        repo_id=args.repo_id,
-        repo_type="space",
-        ignore_patterns=[
-            ".env",
-            "*.db",
-            "*.sqlite",
-            "*.sqlite3",
-            "__pycache__/**",
-            "*.pyc",
-            ".git/**",
-            "build/**",
-            "dist/**",
-            "*.spec",
-            "06_presentation/reporting/generated_reports/*.html",
-            "06_presentation/reporting/generated_reports/*.md",
-        ],
-    )
+    for attempt in range(5):
+        try:
+            api.upload_folder(
+                folder_path=root_dir,
+                repo_id=args.repo_id,
+                repo_type="space",
+                ignore_patterns=[
+                    ".env",
+                    "*.db",
+                    "*.sqlite",
+                    "*.sqlite3",
+                    "__pycache__/**",
+                    "*.pyc",
+                    ".git/**",
+                    "build/**",
+                    "dist/**",
+                    "*.spec",
+                    "06_presentation/reporting/generated_reports/*.html",
+                    "06_presentation/reporting/generated_reports/*.md",
+                ],
+            )
+            break
+        except Exception as e:
+            if attempt == 4:
+                raise
+            print(f"  [!] إعادة محاولة رفع الملفات ({attempt + 1}/5): {type(e).__name__}")
+            time.sleep(2)
     print(f"✅ تم النشر بنجاح! رابط المنصة الحي:\nhttps://huggingface.co/spaces/{args.repo_id}")
 
 
 if __name__ == "__main__":
     main()
+

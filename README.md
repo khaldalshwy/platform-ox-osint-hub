@@ -3,9 +3,8 @@ title: Platform OX — OSINT Hub
 emoji: 🛡️
 colorFrom: blue
 colorTo: gray
-sdk: streamlit
-sdk_version: 1.30.0
-app_file: app.py
+sdk: static
+app_file: index.html
 pinned: false
 ---
 
@@ -17,8 +16,9 @@ pinned: false
 
 ## 🌐 رابط التطبيق المنشور على السحابة (Hugging Face Spaces)
 
-- **الرابط المباشر:** `https://huggingface.co/spaces/<YOUR_HF_USERNAME>/platform-ox-osint-hub`
-- **بنية الاستضافة:** `Hugging Face Spaces (Streamlit SDK)` + قاعدة بيانات سحابية دائمة `Turso (libSQL / SQLite Cloud — 9GB Free)` مع تراجع تلقائي آمن إلى `SQLite` المحلي.
+- **رابط المساحة الرسمية (Hugging Face Space):** [https://huggingface.co/spaces/khaldalshwy/platform-ox-osint-hub](https://huggingface.co/spaces/khaldalshwy/platform-ox-osint-hub)
+- **رابط العرض الحي المباشر بملء الشاشة:** [https://khaldalshwy-platform-ox-osint-hub.static.hf.space/index.html](https://khaldalshwy-platform-ox-osint-hub.static.hf.space/index.html)
+- **بنية الاستضافة:** `Hugging Face Spaces` + قاعدة بيانات سحابية دائمة `Turso (libSQL / SQLite Cloud — 9GB Free)` مع تراجع تلقائي آمن إلى `SQLite` المحلي.
 
 ---
 

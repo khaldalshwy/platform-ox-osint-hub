@@ -10,9 +10,22 @@
 ## 🌐 رابط التطبيق المنشور
 
 - **رابط العرض الحي (Hugging Face Space):**
-  `https://huggingface.co/spaces/<YOUR_HF_USERNAME>/platform-ox-osint-hub`
+  [https://huggingface.co/spaces/khaldalshwy/platform-ox-osint-hub](https://huggingface.co/spaces/khaldalshwy/platform-ox-osint-hub)
 - **رابط العرض المباشر بملء الشاشة (Direct Embed URL):**
-  `https://<your-hf-username>-platform-ox-osint-hub.hf.space`
+  [https://khaldalshwy-platform-ox-osint-hub.static.hf.space/index.html](https://khaldalshwy-platform-ox-osint-hub.static.hf.space/index.html)
+
+---
+
+## 🛠️ توثيق المشكلات التي واجهتنا أثناء النشر وكيف تم حلها (Troubleshooting Log)
+
+1. **مشكلة إلغاء `sdk: streamlit` ومطالبة Hugging Face باشتراك مدفوع (`402 Payment Required`) لـ Docker/Gradio:**
+   - **المشكلة:** عند محاولة إنشاء الـ Space عبر واجهة برمجة تطبيقات Hugging Face (`api/repos/create`)، أرجع الخادم أولاً خطأ `Invalid option: expected one of "gradio"|"docker"|"static" at sdk` بعد إيقاف خيار `streamlit` القديم، وعند تجربة `docker` أرجع `402 Client Error: Payment Required — Static Spaces are free for everyone, but hosting Gradio and Docker Spaces on free cpu-basic requires a PRO subscription`.
+   - **الحل الهندسي المجاني 100%:** تم اعتماد بنية مزدوجة تحافظ على مجانية المنصة بالكامل (`$0`):
+     1. الإبقاء على كامل ملفات تطبيق Streamlit والباك-إند (`app.py`, `01_acquisition`, `02_storage/db_adapter.py`, `03_processing`, `06_presentation`, `Dockerfile`, `requirements.txt`, `runtime.txt`) لتعمل محلياً أو على أي خادم بايثون.
+     2. توليد واجهة الويب السحابية التفاعلية الكاملة [index.html](index.html) عبر [build_cloud_index.py](build_cloud_index.py) ونشرها على `khaldalshwy/platform-ox-osint-hub` بنمط `sdk: static` المجاني 100%، مدمجة بالبيانات الحية المفلترة من قاعدة البيانات وخرائط Google Earth الحقيقية ومخططات Plotly وتوليد التقارير (`SITREP/FLASH/MARITIME`) وتصدير `KML/GEXF/CSV` مع حفظ الحالة الدائم عبر `Turso / Cloud Storage`.
+2. **مشكلة توافق `server.enableCORS = false` في `.streamlit/config.toml`:**
+   - **المشكلة:** أظهر Streamlit تحذيراً بأن `enableCORS = false` يتعارض مع `enableXsrfProtection = true`.
+   - **الحل:** تمت إضافة `enableXsrfProtection = false` في `.streamlit/config.toml` لضمان التوافق التام بدون تحذيرات.
 
 ---
 
@@ -156,3 +169,4 @@ print('Backup saved to turso_full_backup.json')
 1. **لا تشارك التوكنات أبداً:** لا ترسل `TURSO_AUTH_TOKEN` أو `AISSTREAM_API_KEY` أو `HF_TOKEN` في محادثات عامة أو داخل ملفات الكود.
 2. **فحص `.gitignore` قبل الرفع:** تأكد دائماً أن ملف `.env` وملف `.streamlit/secrets.toml` مدرجان في `.gitignore` (مُعدّ مسبقاً في المستودع).
 3. **تدوير المفاتيح (Token Rotation):** إذا اشتبهت بتسرب مفتاح Turso، يمكنك إبطاله فوراً عبر الأمر `turso db tokens invalidate platform-ox-db` وتوليد مفتاح جديد وتحديثه في **Secrets** على Hugging Face Spaces.
+
