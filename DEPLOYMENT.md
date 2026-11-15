@@ -9,10 +9,10 @@
 
 ## 🌐 روابط المستودع والتطبيق المنشور
 
-- **المستودع الرسمي على GitHub (لتشغيل Streamlit Community Cloud الحي):**
+- **رابط تطبيق Streamlit التفاعلي الحي على الإنترنت (Streamlit Community Cloud — 100% مجاني):**
+  👉 **[https://khaldalshwy-platform-ox-osint-hub-app-u5lmri.streamlit.app/](https://khaldalshwy-platform-ox-osint-hub-app-u5lmri.streamlit.app/)**
+- **المستودع الرسمي على GitHub:**
   [https://github.com/khaldalshwy/platform-ox-osint-hub](https://github.com/khaldalshwy/platform-ox-osint-hub)
-- **نشر وتشغيل تطبيق Streamlit التفاعلي الحي (Streamlit Community Cloud — 100% مجاني):**
-  [https://share.streamlit.io/deploy?repository=khaldalshwy/platform-ox-osint-hub&branch=main&mainModule=app.py](https://share.streamlit.io/deploy?repository=khaldalshwy/platform-ox-osint-hub&branch=main&mainModule=app.py)
 - **نسخة العرض السحابي السريع على Hugging Face Spaces:**
   [https://huggingface.co/spaces/khaldalshwy/platform-ox-osint-hub](https://huggingface.co/spaces/khaldalshwy/platform-ox-osint-hub)
   ([https://khaldalshwy-platform-ox-osint-hub.static.hf.space/index.html](https://khaldalshwy-platform-ox-osint-hub.static.hf.space/index.html))

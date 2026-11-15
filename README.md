@@ -14,11 +14,12 @@ pinned: false
 
 ---
 
-## 🌐 رابط التطبيق المنشور على السحابة (Hugging Face Spaces)
+## 🌐 روابط التطبيق الحي والمستودع الرسمي
 
-- **رابط المساحة الرسمية (Hugging Face Space):** [https://huggingface.co/spaces/khaldalshwy/platform-ox-osint-hub](https://huggingface.co/spaces/khaldalshwy/platform-ox-osint-hub)
-- **رابط العرض الحي المباشر بملء الشاشة:** [https://khaldalshwy-platform-ox-osint-hub.static.hf.space/index.html](https://khaldalshwy-platform-ox-osint-hub.static.hf.space/index.html)
-- **بنية الاستضافة:** `Hugging Face Spaces` + قاعدة بيانات سحابية دائمة `Turso (libSQL / SQLite Cloud — 9GB Free)` مع تراجع تلقائي آمن إلى `SQLite` المحلي.
+- **رابط تطبيق Streamlit التفاعلي الحي (Streamlit Community Cloud — 100% مجاني):** [https://khaldalshwy-platform-ox-osint-hub-app-u5lmri.streamlit.app/](https://khaldalshwy-platform-ox-osint-hub-app-u5lmri.streamlit.app/)
+- **رابط المستودع الرسمي على GitHub:** [https://github.com/khaldalshwy/platform-ox-osint-hub](https://github.com/khaldalshwy/platform-ox-osint-hub)
+- **رابط المساحة الاحتياطية (Hugging Face Space):** [https://huggingface.co/spaces/khaldalshwy/platform-ox-osint-hub](https://huggingface.co/spaces/khaldalshwy/platform-ox-osint-hub)
+- **بنية الاستضافة:** `Streamlit Community Cloud (Python 3.11)` + قاعدة بيانات سحابية دائمة `Turso (libSQL / SQLite Cloud — 9GB Free)` مع تراجع تلقائي آمن إلى `SQLite` المحلي.
 
 ---
 
