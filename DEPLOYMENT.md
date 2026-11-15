@@ -7,12 +7,36 @@
 
 ---
 
-## 🌐 رابط التطبيق المنشور
+## 🌐 روابط المستودع والتطبيق المنشور
 
-- **رابط العرض الحي (Hugging Face Space):**
+- **المستودع الرسمي على GitHub (لتشغيل Streamlit Community Cloud الحي):**
+  [https://github.com/khaldalshwy/platform-ox-osint-hub](https://github.com/khaldalshwy/platform-ox-osint-hub)
+- **نشر وتشغيل تطبيق Streamlit التفاعلي الحي (Streamlit Community Cloud — 100% مجاني):**
+  [https://share.streamlit.io/deploy?repository=khaldalshwy/platform-ox-osint-hub&branch=main&mainModule=app.py](https://share.streamlit.io/deploy?repository=khaldalshwy/platform-ox-osint-hub&branch=main&mainModule=app.py)
+- **نسخة العرض السحابي السريع على Hugging Face Spaces:**
   [https://huggingface.co/spaces/khaldalshwy/platform-ox-osint-hub](https://huggingface.co/spaces/khaldalshwy/platform-ox-osint-hub)
-- **رابط العرض المباشر بملء الشاشة (Direct Embed URL):**
-  [https://khaldalshwy-platform-ox-osint-hub.static.hf.space/index.html](https://khaldalshwy-platform-ox-osint-hub.static.hf.space/index.html)
+  ([https://khaldalshwy-platform-ox-osint-hub.static.hf.space/index.html](https://khaldalshwy-platform-ox-osint-hub.static.hf.space/index.html))
+
+---
+
+## ⚡ التفعيل الفوري لتطبيق Streamlit الحي على Streamlit Community Cloud (`share.streamlit.io`)
+
+لتشغيل خادم **Python Streamlit الحي الكامل** (`app.py`) مجاناً 100% مع سحب الأخبار الحية من المصادر الـ 19 والاتصال بـ Turso و AISStream WebSocket:
+
+1. افتح الرابط المباشر التالي في متصفحك (بعد تسجيل الدخول بحسابك في GitHub `khaldalshwy`):
+   👉 **[https://share.streamlit.io/deploy?repository=khaldalshwy/platform-ox-osint-hub&branch=main&mainModule=app.py](https://share.streamlit.io/deploy?repository=khaldalshwy/platform-ox-osint-hub&branch=main&mainModule=app.py)**
+2. ستجد الحقول معبأة تلقائياً كالتالي:
+   - **Repository:** `khaldalshwy/platform-ox-osint-hub`
+   - **Branch:** `main`
+   - **Main file path:** `app.py`
+3. *(اختياري)* اضغط على **Advanced settings...** لإضافة مفاتيح Turso و AISStream في مربع **Secrets** بصيغة TOML:
+   ```toml
+   TURSO_DATABASE_URL = "libsql://your-db-name.turso.io"
+   TURSO_AUTH_TOKEN = "your_turso_auth_token"
+   AISSTREAM_API_KEY = "your_aisstream_api_key"
+   ```
+   *(إذا تركت مربع Secrets فارغاً، سيعمل التطبيق فوراً بقاعدة بيانات SQLite المدمجة مع البذر التلقائي للبيانات الموثقة ووضع المحاكاة البحرية `🟡 محاكاة`).*
+4. اضغط زر **Deploy!** — سيقوم `share.streamlit.io` ببناء بيئة Python 3.11 وتشغيل `app.py` الحي خلال دقيقة واحدة.
 
 ---
 
