@@ -1,0 +1,2 @@
+python 04_orchestration/pipeline_runner.py
+python -m streamlit run 06_presentation/streamlit_app/app.py --browser.gatherUsageStats false

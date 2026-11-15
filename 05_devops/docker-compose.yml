@@ -1,0 +1,143 @@
+version: '3.8'
+
+networks:
+  osint_network:
+    driver: bridge
+
+services:
+  # 1. قاعدة البيانات المكانية والعلائقية الأساسية
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: osint_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-osint_db}
+      POSTGRES_USER: ${POSTGRES_USER:-osint_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-OsintSecure2026!}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ../02_storage/postgres/init_db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - osint_network
+
+  # 2. قاعدة البيانات غير المهيكلة (NoSQL) للبيانات الخام وتدفقات التواصل
+  mongodb:
+    image: mongo:7.0
+    container_name: osint_mongo
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASS:-MongoSecure2026!}
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodata:/data/db
+    networks:
+      - osint_network
+
+  # 3. تخزين الكائنات والملفات والوسائط الخام (متوافق مع AWS S3)
+  minio:
+    image: minio/minio:latest
+    container_name: osint_minio
+    restart: always
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_USER:-minio_admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_PASS:-MinioSecure2026!}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
+    networks:
+      - osint_network
+
+  # 4. محرك البحث والفهرسة اللحظية
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.0
+    container_name: osint_elasticsearch
+    restart: always
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+    ports:
+      - "9200:9200"
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    networks:
+      - osint_network
+
+  # 5. لوحة البحث وتحليل النصوص في Elasticsearch
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.13.0
+    container_name: osint_kibana
+    restart: always
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    networks:
+      - osint_network
+
+  # 6. خادم نشر الخرائط والطبقات المكانية (WMS/WFS)
+  geoserver:
+    image: kartoza/geoserver:latest
+    container_name: osint_geoserver
+    restart: always
+    ports:
+      - "8085:8080"
+    environment:
+      - GEOSERVER_ADMIN_PASSWORD=${GEOSERVER_PASS:-GeoServer2026!}
+    volumes:
+      - geoserverdata:/opt/geoserver/data_dir
+    depends_on:
+      - postgres
+    networks:
+      - osint_network
+
+  # 7. لوحة المقاييس ومراقبة مؤشرات الأداء الحية
+  grafana:
+    image: grafana/grafana:latest
+    container_name: osint_grafana
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASS:-GrafanaSecure2026!}
+    volumes:
+      - grafanadata:/var/lib/grafana
+    networks:
+      - osint_network
+
+  # 8. البوابة والواجهة التفاعلية الرئيسية للمنصة (Streamlit)
+  streamlit_app:
+    image: python:3.11-slim
+    container_name: osint_streamlit_app
+    restart: always
+    working_dir: /app
+    ports:
+      - "8501:8501"
+    volumes:
+      - ../:/app
+      - ../imags:/app/06_presentation/streamlit_app/assets/branding:ro
+    command: >
+      bash -c "pip install --no-cache-dir streamlit pandas plotly requests sqlalchemy folium streamlit-folium &&
+               streamlit run 06_presentation/streamlit_app/app.py --server.port=8501 --server.address=0.0.0.0"
+    depends_on:
+      - postgres
+      - elasticsearch
+    networks:
+      - osint_network
+
+volumes:
+  pgdata:
+  mongodata:
+  miniodata:
+  esdata:
+  geoserverdata:
+  grafanadata:

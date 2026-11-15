@@ -1,0 +1,26 @@
+# Environment variables & secrets
+.env
+.streamlit/secrets.toml
+
+# Local SQLite databases
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Python bytecode & caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Generated intelligence reports (runtime outputs)
+06_presentation/reporting/generated_reports/*.html
+06_presentation/reporting/generated_reports/*.md
+
+# PyInstaller / local packaging artifacts
+build/
+dist/
+*.spec
