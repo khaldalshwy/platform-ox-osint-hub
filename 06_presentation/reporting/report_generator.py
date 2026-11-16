@@ -178,10 +178,11 @@ class ReportGenerator:
         - SITREP: تقرير تقدير موقف شامل
         - FLASH: برقية إنذار أمني عاجل
         - MARITIME: ملف الرصد البحري ومضيق باب المندب
+        - MILITARY: التقرير العسكري والأمني المتخصص (أحداث أمني/عسكري + السفن العسكرية + الأسلحة)
         """
         kpis = db.get_kpis()
-        events = db.get_events(limit=25)
-        vessels = db.get_vessels(limit=15)
+        events = db.get_events(limit=100)
+        vessels = db.get_vessels(limit=30)
         now_dt = datetime.datetime.now()
         now_str = now_dt.strftime("%Y-%m-%d %H:%M:%S")
         report_id = f"OX-REP-{now_dt.strftime('%Y%m%d-%H%M%S')}"
@@ -193,6 +194,7 @@ class ReportGenerator:
             target_events = [e for e in events if e.get("urgency_level") == "قصوى"][:10]
             if not target_events:
                 target_events = events[:5]
+            target_vessels = vessels[:10]
         elif report_type == "MARITIME":
             title = "ملف الرصد البحري وحركة الملاحة (Maritime OSINT Dossier)"
             classification = "تقييم أمني ملاحي دوري"
@@ -200,15 +202,49 @@ class ReportGenerator:
             target_events = [e for e in events if e.get("event_category") in ["بحري", "إغاثي/تجاري"]][:15]
             if not target_events:
                 target_events = events[:10]
+            target_vessels = vessels[:15]
+        elif report_type == "MILITARY":
+            title = "التقرير العسكري والأمني المتخصص (Military & Security Report)"
+            classification = "عسكري / أمني — أولوية عملياتية"
+            badge_color = "#ef4444"
+            target_events = [e for e in events if e.get("event_category") == "أمني/عسكري"][:20]
+            if not target_events:
+                target_events = events[:10]
+            mil_kw = ("فرقاطة", "مدمرة", "زورق", "حربي", "خفر سواحل", "عسكرية", "naval", "frigate", "coast guard", "destroyer")
+            target_vessels = [v for v in vessels if any(k in str(v.get("vessel_type", "")).lower() for k in mil_kw)][:15]
+            if not target_vessels:
+                target_vessels = vessels[:10]
         else: # SITREP
             title = "تقرير تقدير موقف استخباراتي شامل (Situation Assessment Report)"
             classification = "رصد علني موثق - مركز العمليات"
             badge_color = "#10b981"
             target_events = events[:15]
+            target_vessels = vessels[:15]
+
+        # استخراج نوع السلاح لكل حدث عبر NLPProcessor
+        try:
+            from nlp_engine.nlp_processor import NLPProcessor
+            _nlp_w = NLPProcessor()
+        except Exception:
+            _nlp_w = None
+        for ev in target_events:
+            if _nlp_w:
+                ents_w = _nlp_w.extract_entities(f"{ev.get('title', '')} {ev.get('raw_content', '')}")
+                wpns = [x["text"] for x in ents_w if x.get("type") == "WEAPON_SYSTEM"]
+                ev["_weapon_type"] = "، ".join(wpns) if wpns else "غير محدد"
+            else:
+                ev["_weapon_type"] = "غير محدد"
 
         # حساب التحليلات البحثية والدلالية والزمنية والمكانية (التحسينات 3 و 5 و 6 و 7)
-        research = self._compute_research_analytics(target_events, vessels, kpis, now_str)
-        dynamic_conclusions = _generate_dynamic_conclusions(target_events, vessels, kpis)
+        research = self._compute_research_analytics(target_events, target_vessels, kpis, now_str)
+        dynamic_conclusions = _generate_dynamic_conclusions(target_events, target_vessels, kpis)
+        if report_type == "MILITARY":
+            military_recs = [
+                "رفع الجاهزية القتالية والدفاعات الجوية في القطاعات الساحلية والمدن عالية التهديد.",
+                "تكثيف المراقبة على منصات الإطلاق الباليستية والطائرات المسيرة وممرات التهريب البحرية.",
+                "تعزيز التنسيق بين غرف العمليات الميدانية والوحدات البحرية العسكرية (الفرقاطات وزوارق خفر السواحل).",
+            ]
+            research["research_recommendations"] = military_recs + research["research_recommendations"]
         exec_summary = research["executive_summary"]
         top_keywords_10 = research["top_keywords_10"]
         top_keywords_5 = top_keywords_10[:5]
@@ -250,19 +286,20 @@ class ReportGenerator:
 ---
 
 ## 3. جدول الرصد الميداني والوقائع المفهرسة
-| المعرف | عنوان الحدث / البرقية | التصنيف | مستوى التوتر | الموقع | المسافة عن باب المندب | حالة التحقق |
-| :---: | :--- | :---: | :---: | :---: | :---: | :---: |
+| المعرف | عنوان الحدث / البرقية | التصنيف | نوع السلاح | مستوى التوتر | الموقع | المسافة عن باب المندب | حالة التحقق |
+| :---: | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
 """
         for ev in target_events:
             ev_id = ev.get('id', '-')
             ev_title = ev.get('title', '').replace('\n', ' ')[:70]
             ev_cat = ev.get('event_category', 'عام')
+            ev_wpn = ev.get('_weapon_type', 'غير محدد')
             ev_urgency = ev.get('urgency_level', 'روتينية')
             ev_loc = ev.get('location_name', 'غير محدد')
             dkm, dnm = self._get_bab_distance(ev)
             ev_dist = f"{dkm} كم ({dnm} ميل)"
             ev_status = ev.get('fact_check_status', 'قيد التحقق')
-            md_content += f"| {ev_id} | {ev_title}... | {ev_cat} | {ev_urgency} | {ev_loc} | {ev_dist} | {ev_status} |\n"
+            md_content += f"| {ev_id} | {ev_title}... | {ev_cat} | {ev_wpn} | {ev_urgency} | {ev_loc} | {ev_dist} | {ev_status} |\n"
 
         md_content += f"""
 ---
@@ -291,7 +328,7 @@ class ReportGenerator:
 | MMSI | اسم السفينة | النوع والنشاط | العلم | الإحداثيات | الوجهة | السرعة | الحالة |
 | :---: | :--- | :--- | :---: | :---: | :--- | :---: | :---: |
 """
-        for v in vessels[:10]:
+        for v in target_vessels[:10]:
             mmsi = v.get('mmsi', '-')
             name = v.get('vessel_name', 'Unknown')
             vtype = v.get('vessel_type', 'Cargo')[:25]
@@ -721,6 +758,7 @@ class ReportGenerator:
                         <th style="width: 60px;">المعرف</th>
                         <th>عنوان الواقعة / البرقية</th>
                         <th>التصنيف</th>
+                        <th>نوع السلاح</th>
                         <th>مستوى الأهمية</th>
                         <th>الموقع الجغرافي</th>
                         <th>المسافة عن باب المندب</th>
@@ -729,7 +767,7 @@ class ReportGenerator:
                 </thead>
                 <tbody>
 """
-        for ev in target_events[:10]:
+        for ev in target_events[:20]:
             is_crit = ev.get('urgency_level') == 'قصوى'
             cls_name = "tag-critical" if is_crit else "tag-normal"
             dkm, dnm = self._get_bab_distance(ev)
@@ -738,6 +776,7 @@ class ReportGenerator:
                         <td><b>#{ev.get('id', '-')}</b></td>
                         <td>{ev.get('title', '')[:70]}...</td>
                         <td>{ev.get('event_category', 'عام')}</td>
+                        <td>{ev.get('_weapon_type', 'غير محدد')}</td>
                         <td><span class="{cls_name}">{ev.get('urgency_level', 'روتينية')}</span></td>
                         <td>📍 {ev.get('location_name', '-')}</td>
                         <td>{dkm} كم ({dnm} ميل)</td>
@@ -768,7 +807,7 @@ class ReportGenerator:
                 </thead>
                 <tbody>
 """
-        for v in vessels[:8]:
+        for v in target_vessels[:10]:
             html_content += f"""
                     <tr>
                         <td><code>{v.get('mmsi', '-')}</code></td>
@@ -923,7 +962,7 @@ class ReportGenerator:
             "html_content": html_content,
             "kpis": kpis,
             "events": target_events,
-            "vessels": vessels[:15],
+            "vessels": target_vessels[:15],
             "research": research,
             "dynamic_conclusions": dynamic_conclusions,
             "snapshots": snapshots,

@@ -2133,7 +2133,8 @@ elif menu == "محرك إصدار التقارير (Reports Engine)":
             [
                 "تقرير تقدير موقف استخباراتي شامل (SITREP)",
                 "برقية إنذار أمني عاجل (FLASH)",
-                "ملف الرصد البحري وحركة الملاحة (MARITIME)"
+                "ملف الرصد البحري وحركة الملاحة (MARITIME)",
+                "التقرير العسكري والأمني المتخصص (MILITARY)"
             ]
         )
     with col_t2:
@@ -2146,7 +2147,13 @@ elif menu == "محرك إصدار التقارير (Reports Engine)":
         auto_sitrep_btn = st.button("🔄 توليد SITREP تلقائي الآن", use_container_width=True)
 
     if gen_btn or auto_sitrep_btn:
-        r_type = "SITREP" if auto_sitrep_btn else ("FLASH" if "FLASH" in rep_type_select else ("MARITIME" if "MARITIME" in rep_type_select else "SITREP"))
+        r_type = "SITREP" if auto_sitrep_btn else (
+            "MILITARY" if "MILITARY" in rep_type_select else (
+                "FLASH" if "FLASH" in rep_type_select else (
+                    "MARITIME" if "MARITIME" in rep_type_select else "SITREP"
+                )
+            )
+        )
         import reporting.report_generator
         importlib.reload(reporting.report_generator)
         rep = reporting.report_generator.ReportGenerator()
@@ -2258,7 +2265,7 @@ elif menu == "أرشيف التقارير (Reports Archive)":
 
     arch_f1, arch_f2, arch_f3 = st.columns([1.2, 1.2, 2])
     with arch_f1:
-        arch_type = st.selectbox("تصفية حسب النوع:", ["الكل", "SITREP", "FLASH", "MARITIME", "FILTER_AUDIT"])
+        arch_type = st.selectbox("تصفية حسب النوع:", ["الكل", "SITREP", "FLASH", "MARITIME", "MILITARY", "FILTER_AUDIT"])
     with arch_f2:
         arch_fmt = st.selectbox("تصفية حسب الصيغة:", ["الكل", "html", "md", "pdf", "docx"])
     with arch_f3:
@@ -2413,8 +2420,8 @@ elif menu == "مركز التصدير (Export Center)":
 
     st.write("نقطة وصول موحدة لتصدير كافة مخرجات المنصة: التقارير الرسمية (HTML/MD/PDF/Word)، الخرائط (KML)، الشبكات (GEXF)، والجداول (CSV).")
 
-    st.subheader("1️⃣ توليد وتصدير التقارير الرسمية (SITREP / FLASH / MARITIME)")
-    exp_type = st.selectbox("اختر نوع التقرير للتصدير الفوري:", ["SITREP", "FLASH", "MARITIME"], key="exp_center_rtype")
+    st.subheader("1️⃣ توليد وتصدير التقارير الرسمية (SITREP / FLASH / MARITIME / MILITARY)")
+    exp_type = st.selectbox("اختر نوع التقرير للتصدير الفوري:", ["SITREP", "FLASH", "MARITIME", "MILITARY"], key="exp_center_rtype")
     if st.button(f"⚡ تجهيز حزمة {exp_type} الكاملة (HTML + MD + PDF + Word)", type="primary", use_container_width=True):
         import reporting.report_generator
         importlib.reload(reporting.report_generator)
