@@ -49,12 +49,12 @@ if os.path.exists(ICON_SVG_PATH):
     except Exception:
         pass
 
-# إعدادات صفحة Streamlit بالهوية الرسمية (.ico)
+# إعدادات صفحة Streamlit بالهوية الرسمية (.ico) — متجاوبة مع كافة الشاشات (الكمبيوتر، التابلت، الجوال)
 st.set_page_config(
-    page_title="منصة الرصد العلني | Platform OX",
+    page_title="Platform OX — OSINT Hub",
     page_icon=ICON_ICO_PATH if os.path.exists(ICON_ICO_PATH) else (ICON_PNG_PATH if os.path.exists(ICON_PNG_PATH) else "🛡️"),
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="auto"
 )
 
 # ==============================================================================
@@ -294,11 +294,224 @@ st.markdown(f"""
         margin-bottom: 20px;
         display: flex;
         align-items: center;
+        flex-wrap: wrap;
         gap: 10px;
     }}
     
     .section-header h2 {{
         color: {theme_heading_color} !important;
+        margin: 0 !important;
+        font-size: clamp(1.1rem, 2.2vw, 1.65rem) !important;
+        line-height: 1.35 !important;
+    }}
+
+    /* ==========================================================================
+       نظام التجاوب الشامل (Responsive Design: 1920px+ / 1366px / iPad / Mobile)
+       ========================================================================== */
+    html, body, .stApp, [data-testid="stAppViewContainer"] {{
+        max-width: 100vw !important;
+        overflow-x: hidden !important;
+    }}
+
+    .main .block-container {{
+        max-width: 100% !important;
+        padding-top: 1.4rem !important;
+        padding-bottom: 2rem !important;
+    }}
+
+    img, svg, canvas, video, iframe {{
+        max-width: 100% !important;
+    }}
+
+    /* ضمان قابلية التمرير الأفقي للجداول على جميع الشاشات دون انضغاط */
+    [data-testid="stDataFrame"],
+    [data-testid="stTable"],
+    .stDataFrame {{
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+    }}
+
+    [data-testid="stIFrame"],
+    [data-testid="stIFrame"] > iframe,
+    [data-testid="stPlotlyChart"] {{
+        width: 100% !important;
+        max-width: 100% !important;
+    }}
+
+    /* أزرار مريحة للمس (Touch-friendly) */
+    .stButton > button,
+    .stDownloadButton > button {{
+        min-height: 42px !important;
+        border-radius: 10px !important;
+        font-weight: 700 !important;
+        white-space: normal !important;
+        word-break: break-word !important;
+        line-height: 1.35 !important;
+    }}
+
+    /* 1) شاشات الكمبيوتر الكبيرة (1920px+) */
+    @media (min-width: 1920px) {{
+        .main .block-container {{
+            padding-left: 3rem !important;
+            padding-right: 3rem !important;
+        }}
+        .metric-val {{
+            font-size: 2.5rem !important;
+        }}
+    }}
+
+    /* 2) شاشات اللابتوب (<= 1366px) */
+    @media (max-width: 1366px) {{
+        .main .block-container {{
+            padding-left: 1.5rem !important;
+            padding-right: 1.5rem !important;
+        }}
+        .metric-card {{
+            padding: 14px 12px !important;
+        }}
+        .metric-val {{
+            font-size: 1.95rem !important;
+        }}
+    }}
+
+    /* 3) الأجهزة اللوحية (iPad: 768px - 1024px) */
+    @media (max-width: 1024px) and (min-width: 768px) {{
+        .main .block-container {{
+            padding: 1.1rem 1.1rem !important;
+        }}
+        [data-testid="stHorizontalBlock"] {{
+            flex-wrap: wrap !important;
+            gap: 0.75rem !important;
+        }}
+        [data-testid="stHorizontalBlock"] > [data-testid="column"],
+        [data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] {{
+            flex: 1 1 calc(50% - 0.75rem) !important;
+            min-width: calc(50% - 0.75rem) !important;
+        }}
+        .metric-val {{
+            font-size: 1.75rem !important;
+        }}
+        .metric-label {{
+            font-size: 0.88rem !important;
+        }}
+        .stButton > button,
+        .stDownloadButton > button {{
+            min-height: 44px !important;
+            font-size: 0.92rem !important;
+        }}
+    }}
+
+    /* 4) الجوالات الكبيرة والمتوسطة (<= 767px: Pro Max 430px, iPhone 14 390px) */
+    @media (max-width: 767px) {{
+        .main .block-container {{
+            padding: 0.85rem 0.75rem 1.8rem 0.75rem !important;
+        }}
+        h1 {{
+            font-size: 1.35rem !important;
+            line-height: 1.35 !important;
+        }}
+        h2 {{
+            font-size: 1.15rem !important;
+            line-height: 1.35 !important;
+        }}
+        h3 {{
+            font-size: 1.02rem !important;
+            line-height: 1.35 !important;
+        }}
+        p, li, span, label, .stMarkdown {{
+            font-size: 0.94rem !important;
+        }}
+
+        /* تكديس الأعمدة عمودياً بالكامل لمنع تداخل أو انضغاط العناصر */
+        [data-testid="stHorizontalBlock"] {{
+            flex-direction: column !important;
+            flex-wrap: nowrap !important;
+            gap: 0.65rem !important;
+        }}
+        [data-testid="stHorizontalBlock"] > [data-testid="column"],
+        [data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] {{
+            width: 100% !important;
+            min-width: 100% !important;
+            max-width: 100% !important;
+            flex: 1 1 100% !important;
+        }}
+
+        /* بطاقات المؤشرات مريحة ومقروءة على الجوال */
+        .metric-card {{
+            padding: 12px 10px !important;
+            border-radius: 12px !important;
+            margin-bottom: 4px !important;
+        }}
+        .metric-val {{
+            font-size: 1.65rem !important;
+        }}
+        .metric-label {{
+            font-size: 0.86rem !important;
+        }}
+
+        /* أزرار بحجم لمس قياسي (>= 44px) وبعرض كامل */
+        .stButton > button,
+        .stDownloadButton > button {{
+            width: 100% !important;
+            min-height: 46px !important;
+            font-size: 0.95rem !important;
+            padding: 0.55rem 0.85rem !important;
+        }}
+
+        /* الخرائط والـ IFrames لا تخرج عن الشاشة ولا تحتل ارتفاعاً مفرطاً */
+        [data-testid="stIFrame"],
+        [data-testid="stIFrame"] > iframe {{
+            width: 100% !important;
+            max-width: 100% !important;
+            max-height: 455px !important;
+            border-radius: 12px !important;
+        }}
+
+        /* تنسيق شرائط التنبيه وبطاقات الأحداث */
+        .threat-banner-red,
+        .threat-banner-orange,
+        .threat-banner-green {{
+            padding: 11px 12px !important;
+            font-size: 0.9rem !important;
+            line-height: 1.5 !important;
+        }}
+
+        /* قائمة التبويبات إن وُجدت تلتف بسلاسة */
+        [data-baseweb="tab-list"] {{
+            flex-wrap: wrap !important;
+            gap: 6px !important;
+        }}
+    }}
+
+    /* 5) الجوالات الصغيرة (iPhone SE <= 390px و 375px) */
+    @media (max-width: 390px) {{
+        .main .block-container {{
+            padding: 0.65rem 0.5rem 1.5rem 0.5rem !important;
+        }}
+        h1 {{
+            font-size: 1.22rem !important;
+        }}
+        h2 {{
+            font-size: 1.06rem !important;
+        }}
+        .metric-val {{
+            font-size: 1.48rem !important;
+        }}
+        .metric-label {{
+            font-size: 0.82rem !important;
+        }}
+        .stButton > button,
+        .stDownloadButton > button {{
+            min-height: 44px !important;
+            font-size: 0.9rem !important;
+            padding: 0.45rem 0.7rem !important;
+        }}
+        [data-testid="stIFrame"],
+        [data-testid="stIFrame"] > iframe {{
+            max-height: 410px !important;
+        }}
     }}
 </style>
 """, unsafe_allow_html=True)
@@ -722,6 +935,62 @@ def render_google_earth_map(
                 font-weight: 700;
                 direction: rtl;
                 text-align: right;
+            }}
+            @media (max-width: 768px) {{
+                #map-wrapper {{
+                    height: 440px;
+                    border-radius: 12px;
+                }}
+                .fly-bar {{
+                    max-width: calc(100% - 64px);
+                    top: 8px;
+                    right: 8px;
+                    padding: 6px 8px;
+                    gap: 4px;
+                }}
+                .fly-title {{
+                    font-size: 0.72rem;
+                    width: 100%;
+                }}
+                .fly-btn {{
+                    font-size: 0.7rem;
+                    padding: 4px 7px;
+                    min-height: 28px;
+                }}
+                .map-legend {{
+                    bottom: 10px;
+                    right: 8px;
+                    padding: 6px 8px;
+                    font-size: 0.7rem;
+                    min-width: 135px;
+                }}
+                .legend-title {{
+                    font-size: 0.74rem;
+                }}
+                .coords-hud {{
+                    bottom: 10px;
+                    left: 8px;
+                    padding: 4px 8px;
+                    font-size: 0.68rem;
+                }}
+                .popup-card {{
+                    min-width: 190px;
+                    max-width: 240px;
+                }}
+                .popup-header {{
+                    font-size: 0.85rem;
+                }}
+                .popup-meta {{
+                    font-size: 0.74rem;
+                }}
+            }}
+            @media (max-width: 480px) {{
+                #map-wrapper {{
+                    height: 395px;
+                }}
+                .coords-hud {{
+                    display: none;
+                }}
             }}
         </style>
     </head>
