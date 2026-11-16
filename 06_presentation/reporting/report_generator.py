@@ -287,7 +287,7 @@ class ReportGenerator:
 * **أعلى 10 كلمات مفتاحية عبر الأحداث:** {"، ".join(f"{w} ({c})" for w, c in top_keywords_10) if top_keywords_10 else "غير متوفر"}
 
 ---
-
+"""
         if military_field_analysis:
             md_content += "\n---\n\n## التحليل الميداني العسكري (Military Field Analysis)\n"
             for f_key, f_items in military_field_analysis.items():
