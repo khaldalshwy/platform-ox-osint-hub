@@ -185,6 +185,27 @@ class OSINTDatabase:
                 FOREIGN KEY (entity_id) REFERENCES extracted_entities (id)
             );
             """)
+
+            # جدول الأرشفة الدائمة والشاملة للتقارير والمخرجات (التحسين 4.1 و 7.2)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS generated_reports_archive (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                report_type TEXT NOT NULL,
+                report_format TEXT NOT NULL,
+                generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                content TEXT,
+                file_size INTEGER DEFAULT 0,
+                kpis_snapshot TEXT,
+                events_count INTEGER DEFAULT 0,
+                vessels_count INTEGER DEFAULT 0,
+                sha256_hash TEXT,
+                file_path TEXT,
+                full_events_json TEXT,
+                full_vessels_json TEXT,
+                full_entities_json TEXT,
+                metadata_json TEXT
+            );
+            """)
             conn.commit()
 
     def _seed_if_empty(self):
@@ -518,6 +539,78 @@ class OSINTDatabase:
     def update_vessels(self, vessels_list: List[Dict[str, Any]]):
         for v in vessels_list:
             self.upsert_vessel(v)
+
+    # ==========================================================================
+    # أرشيف التقارير الدائم والشامل (التحسين 4 و 7)
+    # ==========================================================================
+    def save_report_archive(self, archive_data: Dict[str, Any]) -> int:
+        ts = archive_data.get("generated_at") or datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO generated_reports_archive (
+                    report_type, report_format, generated_at, content, file_size,
+                    kpis_snapshot, events_count, vessels_count, sha256_hash, file_path,
+                    full_events_json, full_vessels_json, full_entities_json, metadata_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                archive_data.get("report_type", "SITREP"),
+                archive_data.get("report_format", "html"),
+                ts,
+                archive_data.get("content", ""),
+                int(archive_data.get("file_size", 0)),
+                archive_data.get("kpis_snapshot", "{}"),
+                int(archive_data.get("events_count", 0)),
+                int(archive_data.get("vessels_count", 0)),
+                archive_data.get("sha256_hash", ""),
+                archive_data.get("file_path", ""),
+                archive_data.get("full_events_json", "[]"),
+                archive_data.get("full_vessels_json", "[]"),
+                archive_data.get("full_entities_json", "{}"),
+                archive_data.get("metadata_json", "{}"),
+            ))
+            conn.commit()
+            return cursor.lastrowid
+
+    def get_reports_archive(
+        self,
+        limit: int = 100,
+        report_type: Optional[str] = None,
+        report_format: Optional[str] = None,
+        search_query: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        query = "SELECT * FROM generated_reports_archive WHERE 1=1"
+        params: List[Any] = []
+        if report_type and report_type != "الكل":
+            query += " AND report_type = ?"
+            params.append(report_type)
+        if report_format and report_format != "الكل":
+            query += " AND report_format = ?"
+            params.append(report_format)
+        if search_query:
+            query += " AND (report_type LIKE ? OR sha256_hash LIKE ? OR metadata_json LIKE ? OR full_events_json LIKE ?)"
+            like = f"%{search_query}%"
+            params.extend([like, like, like, like])
+        query += " ORDER BY id DESC LIMIT ?"
+        params.append(limit)
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, params)
+            return [dict(row) for row in cursor.fetchall()]
+
+    def get_report_archive_by_id(self, archive_id: int) -> Optional[Dict[str, Any]]:
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM generated_reports_archive WHERE id = ?", (archive_id,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    def delete_report_archive(self, archive_id: int) -> bool:
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM generated_reports_archive WHERE id = ?", (archive_id,))
+            conn.commit()
+            return cursor.rowcount > 0
 
 
 DatabaseManager = OSINTDatabase

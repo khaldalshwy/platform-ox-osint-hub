@@ -1354,6 +1354,8 @@ with st.sidebar:
             "محلل المحتوى والتحقق (NLP Analyzer)",
             "شبكة الكيانات والعلاقات (Network Graph)",
             "محرك إصدار التقارير (Reports Engine)",
+            "أرشيف التقارير (Reports Archive)",
+            "مركز التصدير (Export Center)",
             "عن المنصة ومنهجية معطى"
         ]
     )
@@ -1370,6 +1372,27 @@ with st.sidebar:
                 kpis_curr = db.get_kpis()
                 st.success(f"اكتملت الدورة بنجاح! إجمالي الأحداث: {kpis_curr['total_events']} | السفن النشطة: {kpis_curr['active_vessels']}")
             st.rerun()
+
+    with st.expander("⚙️ إعدادات الإنذار الفوري (Telegram / Webhook)", expanded=False):
+        tg_token_in = st.text_input("Telegram Bot Token:", value=st.session_state.get("tg_bot_token", ""), type="password", placeholder="bot_token")
+        tg_chat_in = st.text_input("Telegram Chat ID:", value=st.session_state.get("tg_chat_id", ""), placeholder="-100xxxxxxxx")
+        wh_url_in = st.text_input("Generic Webhook URL:", value=st.session_state.get("generic_webhook_url", ""), placeholder="https://hooks.slack.com/...")
+        st.session_state["tg_bot_token"] = tg_token_in
+        st.session_state["tg_chat_id"] = tg_chat_in
+        st.session_state["generic_webhook_url"] = wh_url_in
+        if st.button("🔔 اختبار الإشعار", use_container_width=True):
+            res_al = pipeline_runner.send_alert(
+                alert_type="اختبار اتصال الإنذار الفوري",
+                message="رسالة اختبار من منصة الرصد العلني Platform OX.",
+                severity="INFO",
+                bot_token=tg_token_in,
+                chat_id=tg_chat_in,
+                webhook_url=wh_url_in,
+            )
+            if res_al.get("telegram_sent") or res_al.get("webhook_sent"):
+                st.success(f"تم إرسال الإشعار بنجاح! (Telegram={res_al['telegram_sent']}, Webhook={res_al['webhook_sent']})")
+            else:
+                st.warning("لم يتم الإرسال — تأكد من إدخال Telegram Token & Chat ID أو Webhook URL في الإعدادات أو Secrets.")
 
     storage_badge = "☁️ Turso Cloud (SQLite السحابي)" if (hasattr(db, "is_turso_active") and db.is_turso_active()) else "💾 SQLite محلي (Fallback)"
     st.caption(f"🗄️ **محرك التخزين النشط:** `{storage_badge}`")
@@ -1729,8 +1752,59 @@ elif menu == "إدارة وحالة المصادر (Sources Status)":
     render_sources_status_panel(key_prefix="sources_page")
 
     st.markdown("---")
+    rej_all = db.get_rejected_news(limit=1000)
+    rej_c1, rej_c2 = st.columns(2)
+    with rej_c1:
+        if rej_all:
+            df_rej_export = pd.DataFrame(rej_all)
+            export_cols_map = {
+                "title": "العنوان",
+                "summary": "الملخص",
+                "url": "الرابط",
+                "rejection_reason": "سبب الرفض",
+                "score": "درجة الصلة",
+                "rejected_at": "تاريخ الرفض",
+                "source": "المصدر",
+            }
+            avail_cols = [c for c in export_cols_map if c in df_rej_export.columns]
+            csv_rej_bytes = df_rej_export[avail_cols].rename(columns=export_cols_map).to_csv(index=False).encode("utf-8-sig")
+            st.download_button(
+                label="⬇️ تصدير سجل المرفوضات (CSV)",
+                data=csv_rej_bytes,
+                file_name=f"rejected_news_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
+    with rej_c2:
+        if st.button("⬇️ توليد تقرير دقة الفلترة (HTML + PDF)", use_container_width=True):
+            import reporting.report_generator
+            importlib.reload(reporting.report_generator)
+            fp_res = reporting.report_generator.ReportGenerator().generate_filter_performance_report()
+            st.session_state["filter_perf_report"] = fp_res
+            st.success("تم توليد تقرير دقة الفلترة وحفظه في الأرشيف!")
+
+    if "filter_perf_report" in st.session_state:
+        fp = st.session_state["filter_perf_report"]
+        fp_c1, fp_c2 = st.columns(2)
+        with fp_c1:
+            st.download_button(
+                label="⬇️ تحميل تقرير دقة الفلترة (HTML)",
+                data=fp["html_content"],
+                file_name=os.path.basename(fp["html_path"]),
+                mime="text/html",
+                use_container_width=True,
+            )
+        with fp_c2:
+            st.download_button(
+                label="⬇️ تحميل تقرير دقة الفلترة (PDF)",
+                data=fp["pdf_bytes"],
+                file_name=os.path.basename(fp["pdf_path"]),
+                mime="application/pdf",
+                use_container_width=True,
+            )
+
     with st.expander("🛡️ سجل الأخبار المستبعدة بواسطة فلتر الصلة اليمنية (rejected_news)", expanded=False):
-        rej_items = db.get_rejected_news(limit=50)
+        rej_items = rej_all[:50]
         if rej_items:
             df_rej = pd.DataFrame(rej_items)
             st.dataframe(
@@ -2038,7 +2112,7 @@ elif menu == "محرك إصدار التقارير (Reports Engine)":
     
     st.write("إصدار وتوثيق تقارير تقدير الموقف والبرقيات العاجلة وفق منهجية مركز معطى.")
     
-    col_t1, col_t2 = st.columns([2, 1])
+    col_t1, col_t2, col_t3 = st.columns([2, 1, 1])
     with col_t1:
         rep_type_select = st.selectbox(
             "اختر نوع الوثيقة الاستخباراتية المراد إصدارها:",
@@ -2052,41 +2126,44 @@ elif menu == "محرك إصدار التقارير (Reports Engine)":
         st.write("")
         st.write("")
         gen_btn = st.button("⚡ توليد وتوثيق الوثيقة الآن", use_container_width=True, type="primary")
+    with col_t3:
+        st.write("")
+        st.write("")
+        auto_sitrep_btn = st.button("🔄 توليد SITREP تلقائي الآن", use_container_width=True)
 
-    if gen_btn:
-        r_type = "FLASH" if "FLASH" in rep_type_select else ("MARITIME" if "MARITIME" in rep_type_select else "SITREP")
+    if gen_btn or auto_sitrep_btn:
+        r_type = "SITREP" if auto_sitrep_btn else ("FLASH" if "FLASH" in rep_type_select else ("MARITIME" if "MARITIME" in rep_type_select else "SITREP"))
         import reporting.report_generator
         importlib.reload(reporting.report_generator)
         rep = reporting.report_generator.ReportGenerator()
-        try:
-            rep_dict = rep.generate_situation_report(report_type=r_type)
-        except TypeError:
-            rep_dict = rep.generate_situation_report()
+        rep_dict = rep.generate_situation_report(report_type=r_type)
+        pdf_res = rep.generate_pdf(report_type=r_type, base_report=rep_dict)
+        docx_res = rep.generate_docx(report_type=r_type, base_report=rep_dict)
+        rep_dict["pdf_bytes"] = pdf_res["bytes"]
+        rep_dict["pdf_filename"] = pdf_res["filename"]
+        rep_dict["docx_bytes"] = docx_res["bytes"]
+        rep_dict["docx_filename"] = docx_res["filename"]
 
-        if isinstance(rep_dict, str):
-            filepath = rep_dict
-            with open(filepath, "r", encoding="utf-8") as f:
-                txt = f.read()
-            rep_dict = {
-                "report_id": os.path.basename(filepath),
-                "report_type": r_type,
-                "title": "تقرير تقدير موقف استخباراتي",
-                "md_path": filepath,
-                "html_path": filepath,
-                "md_content": txt,
-                "html_content": f"<pre>{txt}</pre>",
-                "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            }
+        if r_type == "FLASH":
+            pipeline_runner.send_alert(
+                alert_type="برقية إنذار عاجل (FLASH)",
+                message=f"تم إصدار برقية FLASH رقم {rep_dict.get('report_id', '')} بعدد {len(rep_dict.get('events', []))} حدث.",
+                severity="CRITICAL",
+                bot_token=st.session_state.get("tg_bot_token", ""),
+                chat_id=st.session_state.get("tg_chat_id", ""),
+                webhook_url=st.session_state.get("generic_webhook_url", ""),
+            )
+
         st.session_state["active_report"] = rep_dict
-        st.success(f"تم إصدار وتوثيق التقرير بنجاح: {rep_dict.get('report_id', '')}")
+        st.success(f"✅ تم إصدار وتوثيق التقرير ({r_type}) بجميع الصيغ (HTML, MD, PDF, Word) وحفظه في الأرشيف الدائم: {rep_dict.get('report_id', '')}")
 
     if "active_report" in st.session_state:
         rep_dict = st.session_state["active_report"]
-        
-        c_act1, c_act2 = st.columns(2)
+        act_rtype = rep_dict.get("report_type", "SITREP")
+        c_act1, c_act2, c_act3, c_act4 = st.columns(4)
         with c_act1:
             st.download_button(
-                label="⬇️ تحميل التقرير بصيغة Markdown (.md)",
+                label=f"⬇️ تحميل {act_rtype} (Markdown)",
                 data=rep_dict["md_content"],
                 file_name=os.path.basename(rep_dict["md_path"]),
                 mime="text/markdown",
@@ -2094,12 +2171,30 @@ elif menu == "محرك إصدار التقارير (Reports Engine)":
             )
         with c_act2:
             st.download_button(
-                label="⬇️ تحميل التقرير بصيغة طباعة رسمية HTML (.html)",
+                label=f"⬇️ تحميل {act_rtype} (HTML)",
                 data=rep_dict["html_content"],
                 file_name=os.path.basename(rep_dict["html_path"]),
                 mime="text/html",
                 use_container_width=True
             )
+        with c_act3:
+            if rep_dict.get("pdf_bytes"):
+                st.download_button(
+                    label=f"⬇️ تحميل {act_rtype} (PDF)",
+                    data=rep_dict["pdf_bytes"],
+                    file_name=rep_dict.get("pdf_filename", f"report_{act_rtype.lower()}.pdf"),
+                    mime="application/pdf",
+                    use_container_width=True
+                )
+        with c_act4:
+            if rep_dict.get("docx_bytes"):
+                st.download_button(
+                    label=f"⬇️ تحميل {act_rtype} (Word)",
+                    data=rep_dict["docx_bytes"],
+                    file_name=rep_dict.get("docx_filename", f"report_{act_rtype.lower()}.docx"),
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    use_container_width=True
+                )
 
         tab_md, tab_html = st.tabs(["معاينة التقرير (Markdown)", "معاينة الطباعة الرسمية (HTML)"])
         with tab_md:
@@ -2133,6 +2228,241 @@ elif menu == "محرك إصدار التقارير (Reports Engine)":
                     )
         else:
             st.info("لم تصدر أي تقارير مؤرشفة بعد.")
+
+# ==============================================================================
+# الشاشة 6ب: أرشيف التقارير الشامل (Reports Archive - التحسين 4.3 و 7.4)
+# ==============================================================================
+elif menu == "أرشيف التقارير (Reports Archive)":
+    st.markdown(f"""
+    <div class='section-header' style="display: flex; align-items: center; gap: 12px;">
+        {f'<img src="data:image/svg+xml;base64,{svg_b64}" width="32" height="32" />' if svg_b64 else ''}
+        <h2 style="margin: 0; color: {theme_heading_color};">أرشيف التقارير الدائم والشامل (Reports Archive)</h2>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.write("أرشيف دائم في قاعدة البيانات (Turso / SQLite) يحتفظ بكافة التقارير الصادرة وبكامل النصوص الأصلية والكيانات المستخرجة والروابط للرجوع إليها في أي وقت.")
+
+    arch_f1, arch_f2, arch_f3 = st.columns([1.2, 1.2, 2])
+    with arch_f1:
+        arch_type = st.selectbox("تصفية حسب النوع:", ["الكل", "SITREP", "FLASH", "MARITIME", "FILTER_AUDIT"])
+    with arch_f2:
+        arch_fmt = st.selectbox("تصفية حسب الصيغة:", ["الكل", "html", "md", "pdf", "docx"])
+    with arch_f3:
+        arch_q = st.text_input("🔍 بحث في الأرشيف (رقم البصمة، نص حدث، موقع...):", "")
+
+    arch_rows = db.get_reports_archive(limit=100, report_type=arch_type, report_format=arch_fmt, search_query=arch_q.strip() or None)
+
+    if arch_rows:
+        df_arch = pd.DataFrame(arch_rows)
+        disp_cols = [c for c in ["id", "report_type", "report_format", "generated_at", "file_size", "events_count", "vessels_count", "sha256_hash"] if c in df_arch.columns]
+        st.dataframe(
+            df_arch[disp_cols].rename(columns={
+                "id": "المعرف",
+                "report_type": "نوع التقرير",
+                "report_format": "الصيغة",
+                "generated_at": "تاريخ التوليد",
+                "file_size": "الحجم (بايت)",
+                "events_count": "الأحداث",
+                "vessels_count": "السفن",
+                "sha256_hash": "بصمة SHA-256",
+            }),
+            use_container_width=True,
+            hide_index=True,
+        )
+
+        st.markdown("---")
+        selected_arch_id = st.selectbox(
+            "اختر تقريراً من الأرشيف لاستعراض تفاصيله الكاملة أو إعادة تحميله:",
+            [r["id"] for r in arch_rows],
+            format_func=lambda rid: next((f"#{x['id']} | {x['report_type']} ({x['report_format'].upper()}) — {x['generated_at']}" for x in arch_rows if x["id"] == rid), str(rid))
+        )
+
+        chosen = db.get_report_archive_by_id(selected_arch_id)
+        if chosen:
+            a_btn1, a_btn2, a_btn3 = st.columns([1.5, 1.5, 1])
+            fmt = str(chosen.get("report_format", "html")).lower()
+            raw_content = chosen.get("content", "")
+            dl_bytes = base64.b64decode(raw_content) if fmt in ("pdf", "docx") and raw_content else raw_content.encode("utf-8")
+            mime_map = {
+                "html": "text/html",
+                "md": "text/markdown",
+                "pdf": "application/pdf",
+                "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            }
+            with a_btn1:
+                st.download_button(
+                    label=f"⬇️ تحميل من الأرشيف ({fmt.upper()})",
+                    data=dl_bytes,
+                    file_name=f"archive_{chosen['id']}_{chosen['report_type'].lower()}.{fmt}",
+                    mime=mime_map.get(fmt, "application/octet-stream"),
+                    use_container_width=True,
+                )
+            with a_btn2:
+                show_full_btn = st.button("👁️ عرض التفاصيل الكاملة", key=f"view_full_{chosen['id']}", use_container_width=True, type="primary")
+                if show_full_btn:
+                    st.session_state["archive_inspect_id"] = chosen["id"]
+            with a_btn3:
+                if st.button("🗑️ حذف من الأرشيف", key=f"del_arch_{chosen['id']}", use_container_width=True):
+                    db.delete_report_archive(chosen["id"])
+                    st.success(f"تم حذف السجل #{chosen['id']} من الأرشيف.")
+                    st.rerun()
+
+            if st.session_state.get("archive_inspect_id") == chosen["id"]:
+                st.markdown("### 📑 التفاصيل الكاملة والنصوص الأصلية للتقرير المؤرشف")
+                try:
+                    ev_full = json.loads(chosen.get("full_events_json") or "[]")
+                except Exception:
+                    ev_full = []
+                try:
+                    ent_full = json.loads(chosen.get("full_entities_json") or "{}")
+                except Exception:
+                    ent_full = {}
+                try:
+                    meta_full = json.loads(chosen.get("metadata_json") or "{}")
+                except Exception:
+                    meta_full = {}
+
+                if meta_full:
+                    st.info(f"**سياق التقرير:** {meta_full.get('selection_reason', 'رصد استخباراتي شامل')} | **محرك التخزين:** `{meta_full.get('storage_backend', '')}`")
+
+                if ent_full:
+                    st.markdown("#### 🧠 الكيانات المستخرجة في هذا التقرير")
+                    st.json(ent_full)
+
+                if ev_full:
+                    st.markdown("#### 📰 جدول الأحداث بكامل النصوص والروابط الأصلية")
+                    df_ev_full = pd.DataFrame(ev_full)
+                    show_cols = [c for c in ["id", "title", "event_category", "urgency_level", "sentiment_label", "location_name", "raw_data_url", "raw_content", "cleaned_content", "selection_context"] if c in df_ev_full.columns]
+                    st.dataframe(df_ev_full[show_cols], use_container_width=True, hide_index=True)
+
+                    txt_lines = [
+                        f"=== التقرير المؤرشف #{chosen['id']} ({chosen['report_type']} - {chosen['generated_at']}) ===",
+                        f"SHA-256: {chosen.get('sha256_hash', '')}",
+                        f"الكيانات المستخرجة: {json.dumps(ent_full, ensure_ascii=False)}",
+                        "",
+                    ]
+                    for idx, e in enumerate(ev_full, 1):
+                        txt_lines.append(f"[{idx}] {e.get('title', '')}")
+                        txt_lines.append(f"    التصنيف: {e.get('event_category', '')} | الأهمية: {e.get('urgency_level', '')} | المشاعر: {e.get('sentiment_label', '')}")
+                        txt_lines.append(f"    الرابط: {e.get('raw_data_url', '')}")
+                        txt_lines.append(f"    النص الأصلي: {e.get('raw_content', '')}")
+                        txt_lines.append(f"    النص المنظف: {e.get('cleaned_content', '')}")
+                        txt_lines.append("")
+                    full_txt_dump = "\n".join(txt_lines)
+                    st.text_area("نسخ النصوص الكاملة:", value=full_txt_dump, height=220)
+                    st.download_button(
+                        label="⬇️ تحميل كامل النصوص والكيانات (.TXT)",
+                        data=full_txt_dump.encode("utf-8-sig"),
+                        file_name=f"archive_{chosen['id']}_full_text.txt",
+                        mime="text/plain",
+                        use_container_width=True,
+                    )
+                else:
+                    st.warning("لا توجد أحداث مفصلة مخزنة في هذا السجل.")
+    else:
+        st.info("الأرشيف فارغ حالياً — قم بتوليد تقرير (SITREP/FLASH/MARITIME) ليتم حفظه تلقائياً هنا.")
+
+# ==============================================================================
+# الشاشة 6ج: مركز التصدير الموحد (Export Center - التحسين 8)
+# ==============================================================================
+elif menu == "مركز التصدير (Export Center)":
+    st.markdown(f"""
+    <div class='section-header' style="display: flex; align-items: center; gap: 12px;">
+        {f'<img src="data:image/svg+xml;base64,{svg_b64}" width="32" height="32" />' if svg_b64 else ''}
+        <h2 style="margin: 0; color: {theme_heading_color};">مركز التصدير الموحد (Unified Export Center)</h2>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.write("نقطة وصول موحدة لتصدير كافة مخرجات المنصة: التقارير الرسمية (HTML/MD/PDF/Word)، الخرائط (KML)، الشبكات (GEXF)، والجداول (CSV).")
+
+    st.subheader("1️⃣ توليد وتصدير التقارير الرسمية (SITREP / FLASH / MARITIME)")
+    exp_type = st.selectbox("اختر نوع التقرير للتصدير الفوري:", ["SITREP", "FLASH", "MARITIME"], key="exp_center_rtype")
+    if st.button(f"⚡ تجهيز حزمة {exp_type} الكاملة (HTML + MD + PDF + Word)", type="primary", use_container_width=True):
+        import reporting.report_generator
+        importlib.reload(reporting.report_generator)
+        rg = reporting.report_generator.ReportGenerator()
+        rep_d = rg.generate_situation_report(report_type=exp_type)
+        pdf_d = rg.generate_pdf(report_type=exp_type, base_report=rep_d)
+        docx_d = rg.generate_docx(report_type=exp_type, base_report=rep_d)
+        st.session_state["exp_center_bundle"] = {
+            "type": exp_type,
+            "html": rep_d["html_content"],
+            "html_name": os.path.basename(rep_d["html_path"]),
+            "md": rep_d["md_content"],
+            "md_name": os.path.basename(rep_d["md_path"]),
+            "pdf": pdf_d["bytes"],
+            "pdf_name": pdf_d["filename"],
+            "docx": docx_d["bytes"],
+            "docx_name": docx_d["filename"],
+        }
+        st.success(f"تم تجهيز حزمة {exp_type} وأرشفتها بنجاح!")
+
+    if "exp_center_bundle" in st.session_state:
+        b = st.session_state["exp_center_bundle"]
+        ec1, ec2, ec3, ec4 = st.columns(4)
+        with ec1:
+            st.download_button(f"⬇️ {b['type']} (HTML)", data=b["html"], file_name=b["html_name"], mime="text/html", use_container_width=True)
+        with ec2:
+            st.download_button(f"⬇️ {b['type']} (MD)", data=b["md"], file_name=b["md_name"], mime="text/markdown", use_container_width=True)
+        with ec3:
+            st.download_button(f"⬇️ {b['type']} (PDF)", data=b["pdf"], file_name=b["pdf_name"], mime="application/pdf", use_container_width=True)
+        with ec4:
+            st.download_button(f"⬇️ {b['type']} (Word)", data=b["docx"], file_name=b["docx_name"], mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
+
+    st.markdown("---")
+    st.subheader("2️⃣ الخرائط الجغرافية (KML) وشبكات العلاقات (GEXF)")
+    events_exp = db.get_events(limit=250)
+    ec_m1, ec_m2, ec_m3 = st.columns(3)
+    with ec_m1:
+        st.download_button(
+            label="🌍 تحميل خريطة GIS + السفن (.KML)",
+            data=generate_google_earth_kml(events_exp, vessels),
+            file_name=f"osint_full_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.kml",
+            mime="application/vnd.google-earth.kml+xml",
+            use_container_width=True,
+        )
+    with ec_m2:
+        st.download_button(
+            label="🚢 تحميل الأسطول البحري AIS (.KML)",
+            data=generate_google_earth_kml([], vessels),
+            file_name=f"ais_fleet_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.kml",
+            mime="application/vnd.google-earth.kml+xml",
+            use_container_width=True,
+        )
+    with ec_m3:
+        g_exp = EntityNetworkGraph()
+        g_exp.build_from_events(events_exp[:80])
+        st.download_button(
+            label="🕸️ تحميل شبكة العلاقات Gephi (.GEXF)",
+            data=g_exp.export_gexf(),
+            file_name=f"osint_network_{datetime.datetime.now().strftime('%Y%m%d')}.gexf",
+            mime="application/xml",
+            use_container_width=True,
+        )
+
+    st.markdown("---")
+    st.subheader("3️⃣ الجداول والبيانات المنظمة (CSV — UTF-8-SIG لبرنامج Excel)")
+    ec_c1, ec_c2, ec_c3 = st.columns(3)
+    with ec_c1:
+        ev_csv = pd.DataFrame(events_exp).to_csv(index=False).encode("utf-8-sig") if events_exp else "".encode("utf-8-sig")
+        st.download_button("📰 تصدير سجل الأحداث (.CSV)", data=ev_csv, file_name="osint_events_export.csv", mime="text/csv", use_container_width=True)
+    with ec_c2:
+        v_csv = pd.DataFrame(vessels).to_csv(index=False).encode("utf-8-sig") if vessels else "".encode("utf-8-sig")
+        st.download_button("🚢 تصدير سجل السفن (.CSV)", data=v_csv, file_name="ais_vessels_export.csv", mime="text/csv", use_container_width=True)
+    with ec_c3:
+        rej_exp = db.get_rejected_news(limit=1000)
+        r_csv = pd.DataFrame(rej_exp).to_csv(index=False).encode("utf-8-sig") if rej_exp else "".encode("utf-8-sig")
+        st.download_button("🛡️ تصدير المرفوضات (.CSV)", data=r_csv, file_name="rejected_news_export.csv", mime="text/csv", use_container_width=True)
+
+    st.markdown("---")
+    st.subheader("4️⃣ ملخص الأرشيف والتنظيف التلقائي للملفات المحلية")
+    arch_summary = db.get_reports_archive(limit=20)
+    if arch_summary:
+        st.dataframe(pd.DataFrame(arch_summary)[["id", "report_type", "report_format", "generated_at", "file_size"]], use_container_width=True, hide_index=True)
+    if st.button("🧹 تنظيف الملفات المحلية الأقدم من 30 يوماً (مع إبقاء سجلات قاعدة البيانات)", use_container_width=True):
+        import reporting.report_generator
+        removed_cnt = reporting.report_generator.ReportGenerator().cleanup_old_reports(days=30)
+        st.info(f"تم تنظيف {removed_cnt} ملفاً محلياً أقدم من 30 يوماً، مع بقاء جميع السجلات محفوظة في الأرشيف السحابي.")
 
 # ==============================================================================
 # الشاشة 7: عن المنصة ومنهجية معطى

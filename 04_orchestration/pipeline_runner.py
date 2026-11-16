@@ -24,6 +24,61 @@ from sentiment.sentiment_analyzer import SentimentAnalyzer, classify_event
 from filters.yemen_relevance_filter import extract_yemen_location
 from spatial_gis.spatial_analyzer import SpatialGISAnalyzer
 from database import db
+from db_adapter import _read_config_value
+
+
+def send_alert(
+    alert_type: str,
+    message: str,
+    severity: str = "HIGH",
+    bot_token: str = "",
+    chat_id: str = "",
+    webhook_url: str = "",
+) -> dict:
+    """
+    التحسين 6.2: إرسال إشعار إنذار فوري عبر Telegram Bot API و/أو Generic Webhook (Slack/Discord).
+    تُقرأ المفاتيح بأمان من المعاملات أو متغيرات البيئة أو Streamlit Secrets أو .env.
+    """
+    import requests
+
+    tg_token = (bot_token or _read_config_value("TELEGRAM_BOT_TOKEN")).strip()
+    tg_chat = (chat_id or _read_config_value("TELEGRAM_CHAT_ID")).strip()
+    wh_url = (webhook_url or _read_config_value("GENERIC_WEBHOOK_URL")).strip()
+
+    placeholders = {"", "your_bot_token_here", "your_chat_id_here", "your_webhook_url_here"}
+    results = {"telegram_sent": False, "webhook_sent": False, "errors": []}
+
+    formatted_msg = f"🚨 [{severity}] Platform OX — {alert_type}\n{message}"
+
+    if tg_token not in placeholders and tg_chat not in placeholders:
+        try:
+            resp = requests.post(
+                f"https://api.telegram.org/bot{tg_token}/sendMessage",
+                json={"chat_id": tg_chat, "text": formatted_msg},
+                timeout=8,
+            )
+            if resp.status_code == 200:
+                results["telegram_sent"] = True
+            else:
+                results["errors"].append(f"Telegram HTTP {resp.status_code}")
+        except Exception as e:
+            results["errors"].append(f"Telegram Error: {type(e).__name__}")
+
+    if wh_url not in placeholders:
+        try:
+            resp = requests.post(
+                wh_url,
+                json={"text": formatted_msg, "alert_type": alert_type, "severity": severity},
+                timeout=8,
+            )
+            if resp.status_code in (200, 201, 204):
+                results["webhook_sent"] = True
+            else:
+                results["errors"].append(f"Webhook HTTP {resp.status_code}")
+        except Exception as e:
+            results["errors"].append(f"Webhook Error: {type(e).__name__}")
+
+    return results
 
 
 def run_full_osint_cycle(query: str = "") -> dict:
@@ -139,6 +194,12 @@ def run_full_osint_cycle(query: str = "") -> dict:
         new_id = db.add_event(event_data)
         if new_id > 0:
             inserted_count += 1
+            if urgency == "قصوى" and sent_res.get("threat_index", 0) >= 80:
+                send_alert(
+                    alert_type="حدث أمني حرج (قصوى)",
+                    message=f"{item.get('title', '')}\nالموقع: {loc_name} | مؤشر التهديد: {sent_res.get('threat_index', 0)}",
+                    severity="CRITICAL",
+                )
 
     print(f"   -> تم فهرسة وتحليل {inserted_count} حدثاً بنجاح في قاعدة البيانات.")
 
