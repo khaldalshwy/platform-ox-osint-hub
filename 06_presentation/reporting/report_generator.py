@@ -1,7 +1,9 @@
 import sys
 import os
 import io
+import re
 import json
+import html as html_lib
 import time
 import datetime
 import hashlib
@@ -128,9 +130,58 @@ def _generate_dynamic_conclusions(events: List[Dict[str, Any]], vessels: List[Di
     return conclusions
 
 
+def _shorten_url(url: str, max_len: int = 55) -> str:
+    """اختصار الروابط الطويلة جداً بوضع ... في المنتصف"""
+    u = str(url or "").strip()
+    if not u or u == "#":
+        return "-"
+    if len(u) <= max_len:
+        return u
+    half = (max_len - 3) // 2
+    return f"{u[:half]}...{u[-half:]}"
+
+
+def _apply_terminology_standards(text: str) -> str:
+    """
+    الخطوة 3: توحيد المصطلحات العسكرية والسياسية المعتمدة في التقارير:
+    - الحوثي / الحوثيين / مليشيا الحوثي -> أنصار الله
+    - الجيش اليمني (التابع للشرعية/التحالف) -> مرتزقة الجيش اليمني التابع للسعودية
+    - مليشيات / فصائل -> مرتزقة
+    - الخونة -> عملاء
+    - الحكومة الشرعية -> حكومة المرتزقة
+    """
+    if not text:
+        return ""
+    out = str(text)
+
+    # 1. استبدال توصيفات أنصار الله
+    out = re.sub(r'من\s+الحوثي(?:ين|ون)?', 'من أنصار الله', out)
+    out = re.sub(r'مليشي[اة]ت?\s+الحوثي(?:ين|ون)?', 'أنصار الله', out)
+    out = re.sub(r'ميليشي[اة]ت?\s+الحوثي(?:ين|ون)?', 'أنصار الله', out)
+    out = re.sub(r'جماعة\s+الحوثي(?:ين|ون)?', 'أنصار الله', out)
+    out = re.sub(r'الحوثي(?:ين|ون)?', 'أنصار الله', out)
+    out = re.sub(r'من\s+حوثي(?:اً|ا|ين|ون)?', 'من أنصار الله', out)
+    out = re.sub(r'حوثي(?:اً|ا|ين|ون)?(?=$|[^\u0621-\u064A])', 'من أنصار الله', out)
+    out = out.replace("من من أنصار الله", "من أنصار الله")
+
+    # 2. استبدال الحكومة الشرعية والمليشيات والفصائل والخونة
+    out = out.replace("الحكومة الشرعية", "حكومة المرتزقة")
+    out = re.sub(r'(?:المليشيات|الميليشيات|مليشيات|ميليشيات)', 'مرتزقة', out)
+    out = re.sub(r'(?:الفصائل|فصائل)', 'مرتزقة', out)
+    out = re.sub(r'(?:الخونة|خونة)', 'عملاء', out)
+
+    # 3. استبدال الجيش اليمني التابع للشرعية/السعودية بدون تكرار
+    out = out.replace("مرتزقة الجيش اليمني التابع للسعودية", "__TEMP_MERC_ARMY__")
+    out = out.replace("الجيش اليمني التابع للسعودية", "مرتزقة الجيش اليمني التابع للسعودية")
+    out = re.sub(r'الجيش\s+اليمني', 'مرتزقة الجيش اليمني التابع للسعودية', out)
+    out = out.replace("__TEMP_MERC_ARMY__", "مرتزقة الجيش اليمني التابع للسعودية")
+
+    return out
+
+
 def _shape_ar(text: Any) -> str:
-    """تشكيل وربط الحروف العربية للعرض السليم في PDF (fpdf2)"""
-    s = str(text or "")
+    """تشكيل وربط الحروف العربية للعرض السليم في PDF (fpdf2) مع تطبيق توحيد المصطلحات"""
+    s = _apply_terminology_standards(str(text or ""))
     if not s.strip():
         return ""
     try:
@@ -207,9 +258,14 @@ class ReportGenerator:
             title = "التقرير العسكري والأمني المتخصص (Military & Security Report)"
             classification = "عسكري / أمني — أولوية عملياتية"
             badge_color = "#ef4444"
-            target_events = [e for e in events if e.get("event_category") == "أمني/عسكري"][:20]
+            from filters.yemen_relevance_filter import is_yemen_relevant
+            mil_raw = [e for e in events if e.get("event_category") == "أمني/عسكري"]
+            target_events = [
+                e for e in mil_raw
+                if is_yemen_relevant(e.get("title", ""), e.get("raw_content", "")).accepted
+            ][:20]
             if not target_events:
-                target_events = events[:10]
+                target_events = mil_raw[:15] or events[:10]
             mil_kw = ("فرقاطة", "مدمرة", "زورق", "حربي", "خفر سواحل", "عسكرية", "naval", "frigate", "coast guard", "destroyer")
             target_vessels = [v for v in vessels if any(k in str(v.get("vessel_type", "")).lower() for k in mil_kw)][:15]
             if not target_vessels:
@@ -372,11 +428,17 @@ class ReportGenerator:
 ---
 
 ## 9. المراجع والمصادر الأصلية
-| المعرف | المصدر | تاريخ النشر | الرابط الأصلي |
-| :---: | :--- | :---: | :--- |
+| المعرف | المصدر | تاريخ النشر | الرابط |
+| :---: | :--- | :---: | :---: |
 """
         for ev in target_events:
-            md_content += f"| {ev.get('id', '-')} | {ev.get('source_label') or ev.get('source_name') or 'رصد علني'} | {ev.get('published_at') or ev.get('captured_at') or '-'} | {ev.get('raw_data_url') or '-'} |\n"
+            src_lbl = _apply_terminology_standards(str(ev.get('source_label') or ev.get('source_name') or 'رصد علني'))
+            pub_dt = ev.get('published_at') or ev.get('captured_at') or '-'
+            raw_u = str(ev.get('raw_data_url') or '').strip()
+            link_md = f"[فتح]({raw_u})" if raw_u.startswith("http") else "-"
+            md_content += f"| {ev.get('id', '-')} | {src_lbl} | {pub_dt} | {link_md} |\n"
+
+        md_content = _apply_terminology_standards(md_content)
 
         md_content += f"""
 ---
@@ -899,9 +961,15 @@ class ReportGenerator:
         <h2 class="section-title">🔗 المراجع والمصادر الأصلية</h2>
         <div class="table-responsive">
             <table>
-                <thead><tr><th>المعرف</th><th>المصدر</th><th>تاريخ النشر</th><th>الرابط الأصلي</th></tr></thead>
+                <thead><tr><th style="width:70px;">المعرف</th><th>المصدر</th><th style="width:160px;">تاريخ النشر</th><th style="width:90px;">الرابط</th></tr></thead>
                 <tbody>
-                    {"".join(f"<tr><td>#{ev.get('id', '-')}</td><td>{ev.get('source_label') or ev.get('source_name') or 'رصد علني'}</td><td>{ev.get('published_at') or ev.get('captured_at') or '-'}</td><td><a href='{ev.get('raw_data_url') or '#'}' target='_blank' style='color:#38bdf8;'>رابط المصدر</a></td></tr>" for ev in target_events)}
+                    {"".join(
+                        f"<tr><td>#{ev.get('id', '-')}</td>"
+                        f"<td>{html_lib.escape(str(ev.get('source_label') or ev.get('source_name') or 'رصد علني'))}</td>"
+                        f"<td>{html_lib.escape(str(ev.get('published_at') or ev.get('captured_at') or '-'))}</td>"
+                        f"<td>{('<a href=\"' + html_lib.escape(str(ev.get('raw_data_url'))) + '\" target=\"_blank\" style=\"background:#0284c7;color:#fff;padding:3px 10px;border-radius:8px;text-decoration:none;font-size:12px;font-weight:700;display:inline-block;\">فتح</a>') if str(ev.get('raw_data_url', '')).startswith('http') else '-'}</td></tr>"
+                        for ev in target_events
+                    )}
                 </tbody>
             </table>
         </div>
@@ -925,6 +993,7 @@ class ReportGenerator:
 </body>
 </html>
 """
+        html_content = _apply_terminology_standards(html_content)
 
         # حفظ الملفات
         filename_prefix = f"report_{report_type.lower()}_{now_dt.strftime('%Y%m%d_%H%M%S')}"
@@ -1005,7 +1074,12 @@ class ReportGenerator:
         }
 
     def _generate_military_field_analysis(self, events: List[Dict[str, Any]]) -> Dict[str, List[str]]:
-        """يحلل الأحداث العسكرية ويستخرج 8 عناوين ميدانية (التقدمات، الانسحابات، الجبهات، المواجهات، الاشتباكات، الميادين الساخنة، التطهير، توقفات المواجهات)."""
+        """
+        الخطوة 2: يحلل الأحداث العسكرية اليمنية فقط (بعد استبعاد أحداث السودان وسوريا ومصر وليبيا والبحرين)
+        ويستخرج 8 عناوين ميدانية بجمل ذكية نظيفة وموحدة المصطلحات.
+        """
+        from filters.yemen_relevance_filter import is_yemen_relevant, extract_yemen_location
+
         fields: Dict[str, List[str]] = {
             "التقدمات": [],
             "الانسحابات": [],
@@ -1018,35 +1092,65 @@ class ReportGenerator:
         }
 
         keywords_map = {
-            "التقدمات": ["تقدم", "سيطرة", "استعادة", "تحرير", "وصول إلى", "تمكنت من", "أحكمت"],
-            "الانسحابات": ["انسحاب", "تراجع", "انكفاء", "هروب", "فرار", "مغادرة"],
-            "الجبهات": ["جبهة", "محور", "خطوط التماس", "المواجهات في"],
-            "المواجهات": ["مواجهات", "قتال", "معارك", "تصعيد", "هجمات متبادلة", "تبادل إطلاق نار"],
-            "الاشتباكات": ["اشتباك", "اشتباكات", "مناوشات", "اصطدامات", "مواجهات مباشرة"],
-            "التطهير": ["تطهير", "تمشيط", "إزالة ألغام", "تأمين", "تفتيش", "ضبط أسلحة"],
-            "توقفات_المواجهات": ["هدنة", "وقف إطلاق النار", "اتفاق تهدئة", "توقف المواجهات", "تسوية", "صلح"],
+            "التقدمات": ["تقدم", "سيطرة", "استعادة", "تحرير", "تمكنت"],
+            "الانسحابات": ["انسحاب", "تراجع", "انكفاء"],
+            "الجبهات": ["جبهة", "محور", "خطوط التماس"],
+            "المواجهات": ["مواجهات", "قتال", "معارك"],
+            "الاشتباكات": ["اشتباك", "اشتباكات"],
+            "التطهير": ["تطهير", "تمشيط", "إزالة ألغام"],
+            "توقفات_المواجهات": ["هدنة", "وقف إطلاق النار"],
         }
 
-        seen_per_field: Dict[str, set] = {k: set() for k in fields}
-        for event in events:
-            text = f"{event.get('title', '')}. {event.get('raw_content', '')} {event.get('cleaned_content', '')}"
-            for field, keywords in keywords_map.items():
-                for kw in keywords:
-                    if kw in text:
-                        for sent in text.split("."):
-                            s_clean = sent.strip()
-                            if kw in s_clean and len(s_clean) > 10 and s_clean not in seen_per_field[field]:
-                                seen_per_field[field].add(s_clean)
-                                fields[field].append(s_clean[:220])
-                        break
+        non_yemen_markers = (
+            "السودان", "الخرطوم", "دارفور", "سوريا", "دمشق", "حلب", "حمص",
+            "مصر", "القاهرة", "ليبيا", "طرابلس", "بنغازي", "البحرين", "المنامة",
+            "أوكرانيا", "روسيا", "غزة", "رفح", "لبنان"
+        )
+        foreign_noise = ("BBC", "CNN", "Reuters", "AFP", "AP", "Sky News")
 
-        locations = [
-            e.get("location_name") for e in events
-            if e.get("location_name") and e["location_name"] != "غير محدد"
-        ]
-        for loc, count in Counter(locations).most_common(5):
+        seen_per_field: Dict[str, set] = {k: set() for k in fields}
+        yemeni_locations: List[str] = []
+
+        for event in events:
+            title_txt = str(event.get("title", ""))
+            raw_txt = str(event.get("raw_content", "") or "")
+            cleaned_txt = str(event.get("cleaned_content", "") or "")
+            combined = f"{title_txt} {raw_txt} {cleaned_txt}".strip()
+
+            # 2.1 فلترة الأحداث اليمنية فقط واستبعاد غير اليمني (السودان/سوريا/مصر/ليبيا/البحرين)
+            rel = is_yemen_relevant(title_txt, raw_txt)
+            if not rel.accepted:
+                continue
+            if any(ny in combined for ny in non_yemen_markers) and rel.score < 70:
+                continue
+
+            y_loc = extract_yemen_location(title_txt, raw_txt) or event.get("location_name")
+            if y_loc and y_loc != "غير محدد":
+                yemeni_locations.append(y_loc)
+
+            # 2.2 تقسيم ذكي للجمل (>= 20 حرفاً وبدون كلمات أجنبية)
+            raw_sentences = re.split(r'[.\n!؟|]+', f"{title_txt}. {raw_txt}")
+            for field, keywords in keywords_map.items():
+                for sent in raw_sentences:
+                    s_clean = re.sub(r'\s+', ' ', sent).strip(" -–—:")
+                    if len(s_clean) < 20:
+                        continue
+                    if any(fn.lower() in s_clean.lower() for fn in foreign_noise):
+                        continue
+                    if any(kw in s_clean for kw in keywords):
+                        s_norm = _apply_terminology_standards(s_clean)[:220]
+                        if s_norm not in seen_per_field[field]:
+                            seen_per_field[field].add(s_norm)
+                            fields[field].append(s_norm)
+
+        # الميادين الساخنة: المواقع اليمنية فقط
+        loc_counts = Counter(yemeni_locations)
+        for loc, count in loc_counts.most_common(5):
             if count >= 2:
                 fields["الميادين_الساخنة"].append(f"{loc} ({count} أحداث)")
+        if not fields["الميادين_الساخنة"] and loc_counts:
+            for loc, count in loc_counts.most_common(3):
+                fields["الميادين_الساخنة"].append(f"{loc} ({count} حدث)")
 
         return fields
 
@@ -1490,7 +1594,7 @@ class ReportGenerator:
         if res_data.get("executive_summary"):
             h_es = doc.add_heading("الملخص التنفيذي", level=2)
             _set_rtl_paragraph(h_es)
-            p_es = doc.add_paragraph(res_data["executive_summary"])
+            p_es = doc.add_paragraph(_apply_terminology_standards(res_data["executive_summary"]))
             _set_rtl_paragraph(p_es)
 
         # 1.6 التحليل الميداني العسكري (8 محاور) في Word (Heading 3 + نقاط)
@@ -1521,14 +1625,14 @@ class ReportGenerator:
         for ev in ev_list:
             dkm, dnm = self._get_bab_distance(ev)
             row_cells = t_ev.add_row().cells
-            row_cells[0].text = str(ev.get("title", ""))
+            row_cells[0].text = _apply_terminology_standards(str(ev.get("title", "")))
             row_cells[1].text = str(ev.get("event_category", ""))
             row_cells[2].text = str(ev.get("urgency_level", ""))
             row_cells[3].text = str(ev.get("location_name", ""))
             row_cells[4].text = f"{dkm} كم ({dnm} ميل)"
             row_cells[5].text = str(ev.get("published_at") or ev.get("captured_at") or "")
             row_cells[6].text = str(ev.get("raw_data_url", ""))
-            row_cells[7].text = str(ev.get("raw_content", ""))[:600]
+            row_cells[7].text = _apply_terminology_standards(str(ev.get("raw_content", ""))[:600])
 
         # 3. جدول السفن
         h3 = doc.add_heading("3. وضع الملاحة والقطع البحرية (AIS)", level=2)
@@ -1553,7 +1657,7 @@ class ReportGenerator:
         _set_rtl_paragraph(h4)
         dyn_conc = rep.get("dynamic_conclusions") or _generate_dynamic_conclusions(ev_list, v_list, kpis)
         for line in dyn_conc + res_data.get("research_recommendations", []):
-            p_c = doc.add_paragraph(f"• {line}")
+            p_c = doc.add_paragraph(f"• {_apply_terminology_standards(line)}")
             _set_rtl_paragraph(p_c)
 
         buf = io.BytesIO()
