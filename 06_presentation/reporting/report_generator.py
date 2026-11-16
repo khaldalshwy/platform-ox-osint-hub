@@ -245,6 +245,9 @@ class ReportGenerator:
                 "تعزيز التنسيق بين غرف العمليات الميدانية والوحدات البحرية العسكرية (الفرقاطات وزوارق خفر السواحل).",
             ]
             research["research_recommendations"] = military_recs + research["research_recommendations"]
+        # التحليل الميداني العسكري الثماني (الخطوة 1 و 2 لتقرير MILITARY)
+        military_field_analysis = self._generate_military_field_analysis(target_events) if report_type == "MILITARY" else None
+
         exec_summary = research["executive_summary"]
         top_keywords_10 = research["top_keywords_10"]
         top_keywords_5 = top_keywords_10[:5]
@@ -283,6 +286,20 @@ class ReportGenerator:
 * **أعلى 5 كيانات مستخرجة:** {"، ".join(f"{e} ({c})" for e, c in top_entities_5) if top_entities_5 else "غير متوفر"}
 * **أعلى 10 كلمات مفتاحية عبر الأحداث:** {"، ".join(f"{w} ({c})" for w, c in top_keywords_10) if top_keywords_10 else "غير متوفر"}
 
+---
+
+        if military_field_analysis:
+            md_content += "\n---\n\n## التحليل الميداني العسكري (Military Field Analysis)\n"
+            for f_key, f_items in military_field_analysis.items():
+                f_label = f_key.replace("_", " ")
+                md_content += f"\n### {f_label}\n"
+                if f_items:
+                    for itm in f_items[:8]:
+                        md_content += f"- {itm}\n"
+                else:
+                    md_content += "- لا توجد أحداث مرصودة لهذا البند في الفترة الحالية.\n"
+
+        md_content += """
 ---
 
 ## 3. جدول الرصد الميداني والوقائع المفهرسة
@@ -749,6 +766,21 @@ class ReportGenerator:
             </div>
         </div>
 
+        <!-- التحليل الميداني العسكري (8 محاور) لتقرير MILITARY -->
+        {"".join([
+            '<h2 class="section-title">⚔️ التحليل الميداني العسكري (Military Field Analysis)</h2>'
+            + "".join(
+                f'<div class="field-section" style="background:rgba(30,41,59,0.45);border:1px solid rgba(239,68,68,0.28);border-radius:10px;padding:12px 16px;margin-bottom:12px;">'
+                f'<h3 style="margin:0 0 8px 0;color:#f87171;font-size:15px;">{k.replace("_", " ")}</h3>'
+                + (
+                    '<ul style="margin:0;padding-right:18px;">' + "".join(f"<li>{x}</li>" for x in v[:8]) + "</ul>"
+                    if v else '<p style="margin:0;color:#94a3b8;font-size:13px;">لا توجد أحداث مرصودة لهذا البند في الفترة الحالية.</p>'
+                )
+                + "</div>"
+                for k, v in military_field_analysis.items()
+            )
+        ]) if military_field_analysis else ""}
+
         <!-- جدول الأحداث الميدانية -->
         <h2 class="section-title">📡 جدول الرصد الميداني والوقائع المفهرسة</h2>
         <div class="table-responsive">
@@ -965,11 +997,58 @@ class ReportGenerator:
             "vessels": target_vessels[:15],
             "research": research,
             "dynamic_conclusions": dynamic_conclusions,
+            "military_field_analysis": military_field_analysis,
             "snapshots": snapshots,
             "archive_id": archive_html_id,
             "sha256_hash": html_hash,
             "timestamp": now_str,
         }
+
+    def _generate_military_field_analysis(self, events: List[Dict[str, Any]]) -> Dict[str, List[str]]:
+        """يحلل الأحداث العسكرية ويستخرج 8 عناوين ميدانية (التقدمات، الانسحابات، الجبهات، المواجهات، الاشتباكات، الميادين الساخنة، التطهير، توقفات المواجهات)."""
+        fields: Dict[str, List[str]] = {
+            "التقدمات": [],
+            "الانسحابات": [],
+            "الجبهات": [],
+            "المواجهات": [],
+            "الاشتباكات": [],
+            "الميادين_الساخنة": [],
+            "التطهير": [],
+            "توقفات_المواجهات": [],
+        }
+
+        keywords_map = {
+            "التقدمات": ["تقدم", "سيطرة", "استعادة", "تحرير", "وصول إلى", "تمكنت من", "أحكمت"],
+            "الانسحابات": ["انسحاب", "تراجع", "انكفاء", "هروب", "فرار", "مغادرة"],
+            "الجبهات": ["جبهة", "محور", "خطوط التماس", "المواجهات في"],
+            "المواجهات": ["مواجهات", "قتال", "معارك", "تصعيد", "هجمات متبادلة", "تبادل إطلاق نار"],
+            "الاشتباكات": ["اشتباك", "اشتباكات", "مناوشات", "اصطدامات", "مواجهات مباشرة"],
+            "التطهير": ["تطهير", "تمشيط", "إزالة ألغام", "تأمين", "تفتيش", "ضبط أسلحة"],
+            "توقفات_المواجهات": ["هدنة", "وقف إطلاق النار", "اتفاق تهدئة", "توقف المواجهات", "تسوية", "صلح"],
+        }
+
+        seen_per_field: Dict[str, set] = {k: set() for k in fields}
+        for event in events:
+            text = f"{event.get('title', '')}. {event.get('raw_content', '')} {event.get('cleaned_content', '')}"
+            for field, keywords in keywords_map.items():
+                for kw in keywords:
+                    if kw in text:
+                        for sent in text.split("."):
+                            s_clean = sent.strip()
+                            if kw in s_clean and len(s_clean) > 10 and s_clean not in seen_per_field[field]:
+                                seen_per_field[field].add(s_clean)
+                                fields[field].append(s_clean[:220])
+                        break
+
+        locations = [
+            e.get("location_name") for e in events
+            if e.get("location_name") and e["location_name"] != "غير محدد"
+        ]
+        for loc, count in Counter(locations).most_common(5):
+            if count >= 2:
+                fields["الميادين_الساخنة"].append(f"{loc} ({count} أحداث)")
+
+        return fields
 
     def _get_bab_distance(self, ev: Dict[str, Any]) -> tuple:
         """حساب المسافة عن باب المندب (كم + ميل بحري) من الحدث أو إحداثياته"""
@@ -1232,6 +1311,25 @@ class ReportGenerator:
             pdf.multi_cell(0, 6, _shape_ar(res_data["executive_summary"]), align="R")
             pdf.ln(2)
 
+        # 1.6 التحليل الميداني العسكري الثماني في PDF (لتقرير MILITARY)
+        mil_fields = rep.get("military_field_analysis")
+        if mil_fields:
+            pdf.set_font(font_name, "B", 12)
+            pdf.set_text_color(220, 38, 38)
+            pdf.cell(0, 8, _shape_ar("التحليل الميداني العسكري (8 محاور)"), align="R", ln=1)
+            for fk, fv in mil_fields.items():
+                pdf.set_font(font_name, "B", 10)
+                pdf.set_text_color(2, 132, 199)
+                pdf.cell(0, 6, _shape_ar(fk.replace("_", " ")), align="R", ln=1)
+                pdf.set_font(font_name, "", 9)
+                pdf.set_text_color(15, 23, 42)
+                if fv:
+                    for itm in fv[:5]:
+                        pdf.multi_cell(0, 5, _shape_ar(f"- {itm}"), align="R")
+                else:
+                    pdf.multi_cell(0, 5, _shape_ar("- لا توجد أحداث مرصودة لهذا البند في الفترة الحالية."), align="R")
+            pdf.ln(2)
+
         # 2. جدول الرصد الميداني بكامل تفاصيله
         pdf.set_font(font_name, "B", 12)
         pdf.set_text_color(2, 132, 199)
@@ -1394,6 +1492,22 @@ class ReportGenerator:
             _set_rtl_paragraph(h_es)
             p_es = doc.add_paragraph(res_data["executive_summary"])
             _set_rtl_paragraph(p_es)
+
+        # 1.6 التحليل الميداني العسكري (8 محاور) في Word (Heading 3 + نقاط)
+        mil_fields = rep.get("military_field_analysis")
+        if mil_fields:
+            h_mf = doc.add_heading("التحليل الميداني العسكري (Military Field Analysis)", level=2)
+            _set_rtl_paragraph(h_mf)
+            for fk, fv in mil_fields.items():
+                h3_f = doc.add_heading(fk.replace("_", " "), level=3)
+                _set_rtl_paragraph(h3_f)
+                if fv:
+                    for itm in fv[:8]:
+                        p_i = doc.add_paragraph(f"• {itm}")
+                        _set_rtl_paragraph(p_i)
+                else:
+                    p_e = doc.add_paragraph("• لا توجد أحداث مرصودة لهذا البند في الفترة الحالية.")
+                    _set_rtl_paragraph(p_e)
 
         h2 = doc.add_heading("2. سجل الأحداث المفهرسة بكامل التفاصيل", level=2)
         _set_rtl_paragraph(h2)
