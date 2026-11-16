@@ -3,12 +3,14 @@ title: Platform OX — OSINT Hub
 emoji: 🛡️
 colorFrom: blue
 colorTo: gray
-sdk: static
-app_file: index.html
+sdk: streamlit
+app_file: app.py
 pinned: false
 ---
 
 # 🛡️ منصة الرصد العلني | Platform OX — OSINT Hub
+
+[![Deployed on Streamlit Cloud](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://khaldalshwy-platform-ox-osint-hub-app-u5lmri.streamlit.app/)
 
 منصة استخبارات المصادر المفتوحة (**OSINT**) المتكاملة للرصد اللحظي، التحليل اللغوي والمكاني (**NLP & GIS**)، تتبع الملاحة البحرية (**AIS**)، وإصدار تقارير تقدير الموقف الاستخباراتية وفق منهجية **مركز معطى**.
 
@@ -16,10 +18,19 @@ pinned: false
 
 ## 🌐 روابط التطبيق الحي والمستودع الرسمي
 
-- **رابط تطبيق Streamlit التفاعلي الحي (Streamlit Community Cloud — 100% مجاني):** [https://khaldalshwy-platform-ox-osint-hub-app-u5lmri.streamlit.app/](https://khaldalshwy-platform-ox-osint-hub-app-u5lmri.streamlit.app/)
+- **الرابط الحي للتطبيق (Streamlit Community Cloud — 100% مجاني):** [https://khaldalshwy-platform-ox-osint-hub-app-u5lmri.streamlit.app/](https://khaldalshwy-platform-ox-osint-hub-app-u5lmri.streamlit.app/)
 - **رابط المستودع الرسمي على GitHub:** [https://github.com/khaldalshwy/platform-ox-osint-hub](https://github.com/khaldalshwy/platform-ox-osint-hub)
-- **رابط المساحة الاحتياطية (Hugging Face Space):** [https://huggingface.co/spaces/khaldalshwy/platform-ox-osint-hub](https://huggingface.co/spaces/khaldalshwy/platform-ox-osint-hub)
 - **بنية الاستضافة:** `Streamlit Community Cloud (Python 3.11)` + قاعدة بيانات سحابية دائمة `Turso (libSQL / SQLite Cloud — 9GB Free)` مع تراجع تلقائي آمن إلى `SQLite` المحلي.
+
+---
+
+## ⚡ تعليمات الاستخدام السريعة (Quick Start)
+
+1. **افتح المنصة الحية مباشرة:** [https://khaldalshwy-platform-ox-osint-hub-app-u5lmri.streamlit.app/](https://khaldalshwy-platform-ox-osint-hub-app-u5lmri.streamlit.app/)
+2. **تشغيل الرصد الحي:** اضغط على زر **`🚀 تشغيل دورة استخبارات شاملة`** في الشريط الجانبي أو غرفة العمليات لسحب أحدث الأخبار من **19 مصدراً مفتوحاً**، وتطبيق **فلتر الصلة اليمنية** على قسم `سياسي/عام` فقط.
+3. **استعراض الخرائط والرادار:** انتقل إلى تبويب **`الخريطة الاستخباراتية`** أو **`الرادار البحري (AIS)`** لاستعراض صور Google Earth التفاعلية وأزرار الانتقال السريع (`Fly-To`).
+4. **تصدير التقارير والملفات:** من تبويب **`محرك إصدار التقارير`** حمّل تقارير `SITREP` أو `FLASH` أو `MARITIME` بصيغة `HTML/MD`، أو حمّل ملفات `KML` (لـ Google Earth Pro) و`GEXF` (لـ Gephi) و`CSV` (لـ Excel).
+5. **مراجعة تدقيق الفلترة:** راجع [FILTER_LOG.md](FILTER_LOG.md) للاطلاع على إحصائيات القبول والرفض، و[الجهوزية.md](الجهوزية.md) لتقرير الجهوزية الكامل.
 
 ---
 
