@@ -39,7 +39,21 @@ YEMEN_CORE_ENTITIES: Dict[str, List[str]] = {
         "المحويت", "ريمة", "عمران", "ذمار", "البيضاء", "سقطرى", "المخا",
         "باب المندب", "ميون", "حنيش", "الصليف", "رأس عيسى", "الخوخة",
         "نشطون", "بير علي", "بلحاف", "الشحر", "الغيضة", "المهرة",
+        # المواقع الحساسة والمطارات والمنافذ والجزر والمديريات (الخطوة 1.1 أ)
+        "مطار صنعاء", "مطار عدن", "مطار الريان", "مطار تعز",
+        "منفذ الوديعة", "منفذ شحن", "منفذ البقع", "منفذ الطوال",
+        "جزيرة كمران", "جزيرة زقر", "جزيرة الزبير",
+        "حريب", "بيحان", "العبر", "الحزم", "الروضة",
+        "خمر", "حرض", "ميدي", "الزيدية",
+        "التربة", "المخاء", "مقبنة", "موزع",
+        "رداع", "مكيراس",
+        "عتق", "زنجبار", "جعار", "أحور", "المحفد",
+        "تريم", "غيل باوزير", "الديس", "الريان",
+        "حديبو", "حديبو سقطرى", "عبد الكوري",
+        "قصر معاشيق", "مدينة مأرب", "الساحل الغربي",
+        # الصيغ الإنجليزية للمدن والمحافظات (الخطوة 3.2)
         "Sanaa", "Sana'a", "Hodeidah", "Hudaydah", "Socotra", "Marib", "Mukalla",
+        "Taiz", "Aden", "Saada", "Mokha", "Shabwa",
         "Bab el-Mandeb", "Bab al-Mandab", "Houthi", "Houthis"
     ],
     "organizations_and_authorities": [
@@ -49,22 +63,171 @@ YEMEN_CORE_ENTITIES: Dict[str, List[str]] = {
         "UKMTO", "أسبيدس", "Aspides", "CENTCOM", "سنتكوم",
         "الأمم المتحدة في اليمن", "المبعوث الأممي إلى اليمن", "المبعوث الأممي لليمن",
         "UNMHA", "OCHA Yemen", "مؤسسة موانئ البحر الأحمر", "خفر السواحل اليمني",
-        "المجلس الانتقالي الجنوبي"
+        "المجلس الانتقالي الجنوبي",
+        # الجهات والبنوك والوزارات والمنظمات الأممية في اليمن (الخطوة 1.1 ب)
+        "البنك المركزي اليمني", "البنك المركزي عدن", "البنك المركزي صنعاء",
+        "درع الوطن", "ألوية العمالقة", "المقاومة الوطنية",
+        "حلف قبائل حضرموت", "المجلس المحلي", "مجلس النواب",
+        "مجلس الشورى", "وزارة الدفاع", "وزارة الداخلية",
+        "الأمن العام", "الأمن السياسي", "الأمن القومي",
+        "الهيئة الوطنية لإدارة وتنسيق الشؤون الإنسانية", "NCHA",
+        "مكتب الأمم المتحدة لتنسيق الشؤون الإنسانية في اليمن",
+        "منظمة الصحة العالمية في اليمن", "WHO Yemen",
+        "اليونيسف في اليمن", "UNICEF Yemen",
+        "المفوضية السامية لشؤون اللاجئين في اليمن", "UNHCR Yemen",
+        # المسميات الرسمية للتشكيلات العسكرية والسياسية (الخطوة 2.2)
+        "الجيش الوطني اليمني", "قوات الشرعية",
+        "المنطقة العسكرية الأولى", "المنطقة العسكرية الثانية",
+        "المنطقة العسكرية الثالثة", "المنطقة العسكرية الرابعة",
+        "المنطقة العسكرية الخامسة", "المنطقة العسكرية السادسة",
+        "المنطقة العسكرية السابعة",
+        "محور تعز", "محور البقع", "محور علب", "محور مران",
+        "ألوية اليمن السعيد", "قوات درع الوطن",
+        "قوات الواجب المشتركة", "ألوية العروبة", "ألوية الفتح",
+        "ألوية التوحيد", "حرس الحدود اليمني",
+        "القوات المشتركة", "العمالقة الجنوبية",
+        "حراس الجمهورية", "المقاومة التهامية",
+        "ألوية الزرانيق", "القوات المسلحة الجنوبية",
+        "قوات الحزام الأمني", "الحزام الأمني عدن",
+        "الحزام الأمني لحج", "الحزام الأمني أبين",
+        "الحزام الأمني الضالع", "قوات النخبة الشبوانية",
+        "قوات النخبة الحضرمية", "قوات دفاع شبوة",
+        "قوات الصاعقة", "قوات الدعم والإسناد",
+        "محور يافع", "محور الضالع",
+        "الحكومة اليمنية في عدن", "مجلس الوزراء اليمني",
+        "المكتب السياسي للمقاومة الوطنية", "التحالف الوطني للأحزاب",
+        "البنك المركزي في عدن", "وزارة الدفاع اليمنية"
     ],
     "persons_and_leaders": [
         "أحمد عوض بن مبارك", "عبدالملك الحوثي", "عبد الملك الحوثي",
         "مهدي المشاط", "رشاد العليمي", "عيدروس الزبيدي", "سلطان العرادة",
         "طارق صالح", "يحيى سريع", "محمد عبدالسلام", "محمد علي الحوثي",
-        "هانس غروندبرغ", "غروندبرغ", "شائع الزنداني", "معين عبدالملك"
+        "هانس غروندبرغ", "غروندبرغ", "شائع الزنداني", "معين عبدالملك",
+        # القيادات والشخصيات الإضافية (الخطوة 1.1 ج)
+        "عبدالعزيز بن حبتور", "عبدالكريم العرشي",
+        "حمود الصبري", "صالح الصماد",
+        "عبدالله الردمي", "عبدالحكيم الخيواني",
+        "حسين العزي", "عبدالسلام صلاح",
+        "خالد بحاح", "أحمد عبيد بن دغر",
+        "مايكل أرون", "فرج البحسني", "عبدالرحمن المحرمي",
+        "عبدالله العليمي", "عثمان مجلي",
+        # الصيغ الإنجليزية للقيادات (الخطوة 3.2)
+        "Abdul-Malik al-Houthi", "Yahya Saree", "Mahdi al-Mashat",
+        "Rashad al-Alimi", "Aidarus al-Zoubaidi", "Tareq Saleh", "Israel Katz"
     ],
     "yemen_ports": [
         "ميناء الحديدة", "ميناء عدن", "ميناء الصليف", "ميناء رأس عيسى",
         "ميناء المخا", "ميناء المكلا", "ميناء نشطون", "ميناء بير علي",
-        "ميناء بلحاف", "ميناء قنا", "ميناء الشحر"
+        "ميناء بلحاف", "ميناء قنا", "ميناء الشحر",
+        # الموانئ الإضافية (الخطوة 1.1 د)
+        "ميناء الضبة", "ميناء النشيمة", "ميناء الخوخة",
+        "رصيف بلحاف", "مرسى الفجير", "ميناء المخا القديم"
     ],
     "waterways": [
-        "باب المندب", "مضيق باب المندب", "خليج عدن", "البحر الأحمر"
+        "باب المندب", "مضيق باب المندب", "خليج عدن", "البحر الأحمر",
+        # الممرات المائية الإضافية (الخطوة 1.1 هـ)
+        "مضيق هرمز", "خليج عمان", "بحر العرب", "المحيط الهندي",
+        "قناة السويس", "البحر المتوسط"
     ]
+}
+
+# ==============================================================================
+# الخطوة 2: قاموس المصطلحات العسكرية والتعبوية (MILITARY_TERMS & PROPAGANDA_TERMS)
+# ==============================================================================
+# ملاحظة: المصطلحات التعبوية في propaganda_sanaa تُستخدم في إعلام صنعاء/أنصار الله
+# وهي مخصصة للرصد والتحليل الإعلامي فقط وتُضاف إلى CONTEXT_KEYWORDS كسياق إعلامي.
+PROPAGANDA_TERMS: List[str] = [
+    "مرتزقة", "مرتزقة العدوان", "مرتزقة السعودية", "مرتزقة الإمارات",
+    "أدوات العدوان", "عملاء العدوان", "مليشيات العدوان",
+    "الخونة والعملاء", "مجندو التحالف", "الفصائل الموالية للتحالف",
+    "التشكيلات المسلحة الموالية للإمارات", "التشكيلات المسلحة الموالية للسعودية",
+    "حكومة المرتزقة", "حكومة الفنادق", "سلطة الارتزاق", "مجلس الخيانة",
+    "المجلس الرئاسي التابع للتحالف", "حكومة معين", "حكومة بن مبارك",
+    "حكومة عدن", "السلطة الموالية للعدوان", "الشرعية المزعومة"
+]
+
+MILITARY_TERMS: Dict[str, List[str]] = {
+    "propaganda_sanaa": list(PROPAGANDA_TERMS),
+    "saudi_backed_official": [
+        "الجيش الوطني اليمني", "قوات الشرعية",
+        "المنطقة العسكرية الأولى", "المنطقة العسكرية الثانية",
+        "المنطقة العسكرية الثالثة", "المنطقة العسكرية الرابعة",
+        "المنطقة العسكرية الخامسة", "المنطقة العسكرية السادسة",
+        "المنطقة العسكرية السابعة",
+        "محور تعز", "محور البقع", "محور علب", "محور مران",
+        "ألوية اليمن السعيد", "قوات درع الوطن",
+        "قوات الواجب المشتركة", "ألوية العروبة", "ألوية الفتح",
+        "ألوية التوحيد", "حرس الحدود اليمني"
+    ],
+    "uae_backed_official": [
+        "القوات المشتركة", "ألوية العمالقة", "العمالقة الجنوبية",
+        "المقاومة الوطنية", "حراس الجمهورية", "المقاومة التهامية",
+        "ألوية الزرانيق", "القوات المسلحة الجنوبية",
+        "قوات الحزام الأمني", "الحزام الأمني عدن",
+        "الحزام الأمني لحج", "الحزام الأمني أبين",
+        "الحزام الأمني الضالع", "قوات النخبة الشبوانية",
+        "قوات النخبة الحضرمية", "قوات دفاع شبوة",
+        "قوات الصاعقة", "قوات الدعم والإسناد",
+        "محور يافع", "محور الضالع"
+    ],
+    "political_admin": [
+        "مجلس القيادة الرئاسي", "الحكومة اليمنية في عدن",
+        "مجلس الوزراء اليمني", "المجلس الانتقالي الجنوبي",
+        "المكتب السياسي للمقاومة الوطنية", "التحالف الوطني للأحزاب",
+        "البنك المركزي في عدن", "وزارة الدفاع اليمنية"
+    ],
+}
+
+# ==============================================================================
+# الخطوة 3: المصطلحات الإنجليزية لوكالات الأنباء الغربية والإعلام الإسرائيلي (WESTERN_TERMS)
+# ==============================================================================
+WESTERN_TERMS = {
+    # توصيفات الأطراف (رويترز/الجارديان/AP/BBC)
+    "houthis", "houthi movement", "houthi rebels", "houthi militants",
+    "iran-aligned houthis", "iran-backed houthis",
+    "yemen's internationally recognized government",
+    "saudi-backed government forces",
+    "presidential leadership council", "plc",
+    "southern transitional council", "stc",
+    "saudi-led coalition",
+
+    # العمليات والمعارك
+    "yemen civil war", "yemen conflict",
+    "territorial gains", "military offensive", "ground offensive",
+    "clashes in yemen", "frontline fighting", "besieged yemeni city",
+    "air campaign", "airstrikes in yemen", "retaliatory strikes",
+    "ceasefire collapse", "fragile truce", "un-led peace process",
+
+    # أزمة البحر الأحمر والملاحة
+    "red sea crisis", "bab-el-mandeb strait", "gulf of aden",
+    "arabian sea", "red sea chokehold", "freedom of navigation",
+    "commercial shipping", "merchant vessel", "bulk carrier",
+    "oil tanker", "naval blockade", "maritime security",
+    "ship hijacking", "us central command", "centcom",
+    "operation prosperity guardian", "operation aspides",
+    "ukmto", "multinational maritime defense alliance",
+
+    # الإعلام الإسرائيلي
+    "houthi terrorists", "iranian proxy",
+    "axis of resistance", "multi-front war", "seventh front",
+    "houthi threat", "long-range attacks",
+    "ballistic missile from yemen", "surface-to-surface missile",
+    "houthi uav", "explosive-laden drone", "suicide drone",
+    "arrow air defense system", "david's sling", "thaad",
+    "aerial interception", "sirens sound in eilat",
+    "central israel sirens", "red sea port of eilat",
+    "idf strikes in yemen", "israeli air force", "iaf",
+    "hodeidah port strikes", "ras isa", "sanaa airport",
+    "power station strikes",
+
+    # الأسلحة والقدرات
+    "ballistic missiles", "cruise missiles", "hypersonic missile",
+    "one-way attack drones", "unmanned surface vessels", "usvs",
+    "unmanned underwater vehicles", "uuvs",
+    "air defenses", "mq-9 reaper drone", "f-15 fighter jet",
+    "f-35", "aircraft carrier", "guided-missile destroyer",
+    "weapons smuggling", "arms embargo",
+    "illicit weapons shipments", "dhow interception",
 }
 
 # المواقع والجهات المشتركة التي لا تكفي وحدها ويشترط اقترانها بكلمة سياقية أو كيان يمني صريح
@@ -75,14 +238,23 @@ SHARED_CONTEXT_DEPENDENT_ENTITIES: List[str] = [
     "خليج عدن",
     "CENTCOM",
     "سنتكوم",
+    "مضيق هرمز",
+    "خليج عمان",
+    "بحر العرب",
+    "المحيط الهندي",
+    "قناة السويس",
+    "البحر المتوسط",
 ]
 
-# قائمة مسطحة للكيانات اليمنية الصريحة غير المشتركة (تُثبت الصلة اليمنية مباشرة)
+# قائمة مسطحة للكيانات اليمنية الصريحة غير المشتركة (تُثبت الصلة اليمنية مباشرة وتشمل WESTERN_TERMS)
 EXPLICIT_YEMEN_ENTITIES: List[str] = []
 for _cat_key, _items in YEMEN_CORE_ENTITIES.items():
     for _itm in _items:
         if _itm not in SHARED_CONTEXT_DEPENDENT_ENTITIES and _itm not in EXPLICIT_YEMEN_ENTITIES:
             EXPLICIT_YEMEN_ENTITIES.append(_itm)
+for _wterm in sorted(WESTERN_TERMS):
+    if _wterm not in SHARED_CONTEXT_DEPENDENT_ENTITIES and _wterm not in EXPLICIT_YEMEN_ENTITIES:
+        EXPLICIT_YEMEN_ENTITIES.append(_wterm)
 
 
 # ==============================================================================
@@ -98,9 +270,9 @@ EXCLUDE_ENTITIES: Dict[str, List[str]] = {
         "بيومي فؤاد", "أكرم حسني", "ويجز"
     ],
     "global_tech": [
-        "إنفيديا", "نفيديا", "Nvidia", "جنسن هوانغ", "أبل", "آبل", "Apple",
-        "آيفون", "iPhone", "مايكروسوفت", "Microsoft", "جوجل", "ميتا", "Meta",
-        "تويتر", "تسلا", "Tesla", "إيلون ماسك", "سامسونغ", "Samsung", "Galaxy",
+        "إنفيديا", "نفيديا", "Nvidia", "جنسن هوانغ",
+        "آيفون", "iPhone", "مايكروسوفت", "Microsoft", "ميتا", "Meta",
+        "تسلا", "Tesla", "إيلون ماسك", "سامسونغ", "Samsung", "Galaxy",
         "Honor", "Oppo", "Snapdragon", "Geekbench", "جيمس ويب", "بلايستيشن"
     ],
     "sports": [
@@ -133,9 +305,26 @@ for _exc_list in EXCLUDE_ENTITIES.values():
         if _e not in ALL_EXCLUDE_ENTITIES:
             ALL_EXCLUDE_ENTITIES.append(_e)
 
+# قائمة الاستبعاد الناعم (الخطوة 4.2): تُرفض فقط إذا لم يوجد أي كيان يمني صريح في النص
+SOFT_EXCLUDE_ENTITIES: List[str] = [
+    "جوجل", "تويتر", "أبل", "آبل", "Apple", "Google", "Twitter"
+]
+
+# قائمة النطاق البحري للمصادر الدولية (الخطوة 4.3)
+MARITIME_REGION_ENTITIES: List[str] = [
+    "البحر الأحمر", "Red Sea",
+    "خليج عدن", "Gulf of Aden",
+    "باب المندب", "Bab el-Mandeb", "Bab al-Mandab",
+    "بحر العرب", "Arabian Sea",
+    "مضيق هرمز", "Strait of Hormuz",
+    "المحيط الهندي", "Indian Ocean",
+    "قناة السويس", "Suez Canal",
+    "اليمن", "Yemen", "الحديدة", "Hodeidah", "عدن", "Aden"
+]
+
 
 # ==============================================================================
-# ج) كلمات السياق الأمني/البحري/الحكومي/اليمني
+# ج) كلمات السياق الأمني/البحري/الحكومي/اليمني + السياق الإعلامي + المصطلحات الغربية
 # ==============================================================================
 CONTEXT_KEYWORDS: List[str] = [
     "سفينة", "سفن", "ناقلة", "ناقلات", "ملاحة", "الملاحة", "بحري", "بحرية",
@@ -148,6 +337,13 @@ CONTEXT_KEYWORDS: List[str] = [
     "ship", "vessel", "tanker", "maritime", "shipping", "port", "missile",
     "drone", "attack", "humanitarian", "relief", "aid", "Yemen", "Sanaa"
 ]
+# دمج المصطلحات التعبوية (سياق إعلامي) والمصطلحات الإنجليزية في CONTEXT_KEYWORDS
+for _pt in PROPAGANDA_TERMS:
+    if _pt not in CONTEXT_KEYWORDS:
+        CONTEXT_KEYWORDS.append(_pt)
+for _wt in sorted(WESTERN_TERMS):
+    if _wt not in CONTEXT_KEYWORDS:
+        CONTEXT_KEYWORDS.append(_wt)
 
 # قائمة المواقع اليمنية الحقيقية مرتبة من الأكثر تحديداً (الموانئ والمدن) إلى الأعم
 ORDERED_YEMEN_LOCATIONS: List[str] = [
@@ -220,7 +416,7 @@ def match_whole_term(text: str, term: str) -> bool:
         return bool(re.search(pattern_jeddah, text))
 
     # 2. للمصطلحات الإنجليزية واللاتينية
-    if re.match(r'^[A-Za-z0-9\s\-_]+$', term):
+    if re.match(r"^[A-Za-z0-9\s\-_']+$", term):
         pattern_en = r'(?:^|[^A-Za-z0-9])' + re.escape(term) + r'(?=$|[^A-Za-z0-9])'
         return bool(re.search(pattern_en, text, flags=re.IGNORECASE))
 
@@ -281,6 +477,33 @@ def extract_yemen_location(title: str, summary: str = "") -> Optional[str]:
     return None
 
 
+def is_soft_excluded(word: str, text: str) -> bool:
+    """
+    دالة الاستبعاد الناعم (الخطوة 4.2):
+    ترجع True (يُرفض) فقط إذا وُجدت كلمة الاستبعاد الناعم (مثل جوجل/تويتر/أبل)
+    ولم يوجد أي كيان يمني صريح في نفس النص.
+    """
+    clean_txt = _clean_html_and_urls(text or "")
+    if not clean_txt or not word:
+        return False
+    if not match_whole_term(clean_txt, word):
+        return False
+    has_explicit = any(match_whole_term(clean_txt, ent) for ent in EXPLICIT_YEMEN_ENTITIES)
+    return not has_explicit
+
+
+def is_maritime_region_relevant(title: str, summary: str = "") -> bool:
+    """
+    دالة فحص النطاق البحري الإقليمي (الخطوة 4.3):
+    تُطبق على الأخبار المصنفة 'بحري' أو 'أمني/عسكري' القادمة من المصادر الدولية
+    (USNI, Naval News, gCaptain, Splash247, Maritime Executive) لضمان ارتباطها بنطاق البحر الأحمر وباب المندب وخليج عدن وبحر العرب.
+    """
+    full_text = _clean_html_and_urls(f"{title or ''} {summary or ''}".strip())
+    if not full_text:
+        return False
+    return any(match_whole_term(full_text, ent) for ent in MARITIME_REGION_ENTITIES)
+
+
 def is_yemen_relevant(title: str, summary: str = "") -> FilterResult:
     """
     فحص مدى ارتباط الخبر بالشأن اليمني والأمن الإقليمي المرتبط باليمن
@@ -304,17 +527,18 @@ def is_yemen_relevant(title: str, summary: str = "") -> FilterResult:
     has_explicit_yemen = bool(explicit_in_title or explicit_in_summary)
 
     excluded_hits = [ex for ex in ALL_EXCLUDE_ENTITIES if match_whole_term(full_text, ex)]
+    soft_excluded_hits = [sx for sx in SOFT_EXCLUDE_ENTITIES if is_soft_excluded(sx, full_text)]
 
     # ------------------------------------------------------------------
-    # الخطوة أ: فحص الاستبعاد الصريح
+    # الخطوة أ: فحص الاستبعاد الصريح والاستبعاد الناعم
     # إذا وُجد كيان في قائمة Exclude + لا يوجد كيان يمني صريح في نفس النص → REJECT فوري
     # ------------------------------------------------------------------
-    if excluded_hits and not has_explicit_yemen:
+    if (excluded_hits or soft_excluded_hits) and not has_explicit_yemen:
         return FilterResult(
             accepted=False,
-            reason="excluded_entity",
+            reason="excluded_entity" if excluded_hits else "soft_excluded_entity",
             score=0,
-            matched_entities=excluded_hits,
+            matched_entities=excluded_hits or soft_excluded_hits,
             matched_location=None
         )
 

@@ -24,7 +24,7 @@ for _sub in ["01_acquisition", "01_acquisition/apis", "02_storage", "03_processi
 
 from database import db, save_rejected_news
 from sentiment.sentiment_analyzer import classify_event, SentimentAnalyzer
-from filters.yemen_relevance_filter import _clean_html_and_urls
+from filters.yemen_relevance_filter import _clean_html_and_urls, is_maritime_region_relevant
 from spatial_gis.spatial_analyzer import SpatialGISAnalyzer
 from rss_sources import RSS_SOURCES
 
@@ -303,8 +303,24 @@ class NewsAggregator:
         if active_db.event_hash_exists(raw_hash):
             return {"status": "duplicate", "reason": "sha256_hash_exists", "id": 0, "hash": raw_hash}
 
-        # 2. التصنيف وفلترة قسم سياسي/عام فقط
+        # 2. التصنيف وفلترة قسم سياسي/عام فقط + فلتر النطاق البحري للمصادر الدولية (الخطوة 4.3)
         cat_info = classify_event(title, summary, full_text)
+        source_name_str = item.get("source_name", item.get("source", "RSS"))
+        intl_maritime_sources = ("USNI", "Naval News", "gCaptain", "Splash247", "Maritime Executive")
+        if cat_info["accepted"] and cat_info["category"] in ("بحري", "أمني/عسكري"):
+            if any(ms.lower() in source_name_str.lower() for ms in intl_maritime_sources):
+                if not is_maritime_region_relevant(title, summary):
+                    rej_id = active_db.add_rejected_news({
+                        "title": title,
+                        "summary": summary,
+                        "source": source_name_str,
+                        "url": item.get("link", item.get("url", "")),
+                        "rejection_reason": "outside_maritime_region",
+                        "relevance_score": 0,
+                        "matched_exclude": None,
+                    })
+                    return {"status": "rejected", "reason": "outside_maritime_region", "id": rej_id, "hash": raw_hash}
+
         if not cat_info["accepted"]:
             rej_id = active_db.add_rejected_news({
                 "title": title,
