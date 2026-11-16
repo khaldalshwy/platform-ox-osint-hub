@@ -1,6 +1,7 @@
 import sys
 import os
 import time
+import json
 import datetime
 
 # ضبط ترميز المخرجات لدعم اللغة العربية في نظام ويندوز
@@ -25,6 +26,18 @@ from filters.yemen_relevance_filter import extract_yemen_location
 from spatial_gis.spatial_analyzer import SpatialGISAnalyzer
 from database import db
 from db_adapter import _read_config_value
+
+
+def determine_fact_check_status(event: dict, source_trust_score: int, entity_count: int, source_count: int = 1) -> str:
+    """
+    التحسين 2.1: تحديد حالة التحقق والتثليث الميداني بناءً على درجة ثقة المصدر وتعدد المصادر والكيانات.
+    """
+    if int(source_trust_score or 0) >= 90 or int(source_count or 1) >= 2:
+        return "مؤكد برقيات رسمية"
+    elif int(entity_count or 0) >= 2 and int(source_trust_score or 0) >= 70:
+        return "قيد التثليث الميداني"
+    else:
+        return "رصد أولي مفتوح"
 
 
 def send_alert(
@@ -152,6 +165,9 @@ def run_full_osint_cycle(query: str = "") -> dict:
             loc_name = classification.get("location_name") or "اليمن"
 
         coords = gis.resolve_location(loc_name)
+        dist_km = gis.haversine_distance_km(coords[0], coords[1], 12.5860, 43.3420)
+        dist_nm = gis.haversine_distance_nautical_miles(coords[0], coords[1], 12.5860, 43.3420)
+        extracted_kw = json.dumps(nlp.extract_keywords(full_text, top_n=10), ensure_ascii=False)
 
         # تحديد درجة الأهمية الاستخباراتية
         if sent_res["tension_level"] == "قصوى" or any(w in full_text for w in ["صاروخ", "استهداف", "هجوم", "غرق"]):
@@ -162,13 +178,11 @@ def run_full_osint_cycle(query: str = "") -> dict:
         else:
             urgency = "روتينية"
 
-        # تحديد حالة التحقق والتثليث
-        if "UKMTO" in full_text or "رسمي" in full_text or "أسبيدس" in full_text:
-            fact_status = "مؤكد برقيات رسمية"
-        elif len(entities) >= 2:
-            fact_status = "قيد التثليث الميداني"
-        else:
-            fact_status = "رصد أولي مفتوح"
+        # تحديد حالة التحقق والتثليث بالاعتماد على درجة الثقة وتعدد المصادر (التحسين 2.1 و 2.2)
+        raw_hash = item.get("hash", "")
+        trust_score = int(item.get("trust_score", 70) or 70)
+        existing_sc = db.get_source_count_by_hash(raw_hash) if raw_hash and db.event_hash_exists(raw_hash) else 1
+        fact_status = determine_fact_check_status(item, trust_score, len(entities), existing_sc)
 
         event_data = {
             "title": title,
@@ -185,11 +199,16 @@ def run_full_osint_cycle(query: str = "") -> dict:
             "longitude": coords[1],
             "location_name": loc_name,
             "raw_data_url": item.get("url"),
-            "raw_hash": item.get("hash", ""),
+            "raw_hash": raw_hash,
             "relevance_score": relevance_score,
             "relevance_reason": relevance_reason,
-            "trust_score": item.get("trust_score", 70),
+            "trust_score": trust_score,
             "source_label": item.get("source", "رصد علني مباشر"),
+            "source_count": existing_sc,
+            "threat_index": int(sent_res.get("threat_index", 20)),
+            "distance_to_bab_el_mandeb_km": dist_km,
+            "distance_to_bab_el_mandeb_nm": dist_nm,
+            "extracted_keywords": extracted_kw,
         }
         new_id = db.add_event(event_data)
         if new_id > 0:

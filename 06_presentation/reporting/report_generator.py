@@ -47,6 +47,87 @@ def _pdf_to_bytes(pdf_obj) -> bytes:
     return str(out).encode("latin-1")
 
 
+def _generate_dynamic_conclusions(events: List[Dict[str, Any]], vessels: List[Dict[str, Any]], kpis: Dict[str, Any]) -> List[str]:
+    """
+    التحسين 3.1: توليد استنتاجات وتوصيات ديناميكية محسوبة من بيانات الأحداث والسفن الفعلية.
+    """
+    conclusions: List[str] = []
+
+    # 1) أعلى 3 مواقع تكراراً
+    locations = Counter([
+        e.get("location_name") for e in events
+        if e.get("location_name") and e.get("location_name") != "غير محدد"
+    ])
+    top_locations = locations.most_common(3)
+    if top_locations:
+        loc_text = "، ".join([f"{loc} ({count})" for loc, count in top_locations])
+        conclusions.append(f"تركز الأحداث في: {loc_text}.")
+
+    # 2) أعلى 3 تصنيفات
+    categories = Counter([e.get("event_category") for e in events if e.get("event_category")])
+    top_cats = categories.most_common(3)
+    if top_cats:
+        cat_text = "، ".join([f"{cat} ({count})" for cat, count in top_cats])
+        conclusions.append(f"توزيع الأحداث حسب التصنيف: {cat_text}.")
+
+    # 3) متوسط مؤشر التهديد
+    threat_scores = [float(e.get("threat_index")) for e in events if e.get("threat_index") is not None]
+    if not threat_scores:
+        # احتساب تقريبي من sentiment_score للأحداث المؤرشفة مسبقاً
+        for e in events:
+            sc = float(e.get("sentiment_score", 0.0) or 0.0)
+            threat_scores.append(max(10.0, min(95.0, 50.0 - sc * 40.0)))
+    avg_threat = sum(threat_scores) / len(threat_scores) if threat_scores else 0.0
+    if avg_threat >= 70:
+        conclusions.append(f"⚠️ مؤشر التهديد العام مرتفع ({avg_threat:.0f}/100) — يتطلب رفع الجاهزية.")
+    elif avg_threat >= 40:
+        conclusions.append(f"مؤشر التهديد العام متوسط ({avg_threat:.0f}/100) — يستدعي المتابعة.")
+    else:
+        conclusions.append(f"مؤشر التهديد العام منخفض ({avg_threat:.0f}/100) — الوضع مستقر نسبياً.")
+
+    # 4) أكثر الأسلحة والكيانات شيوعاً
+    weapon_hits: List[str] = []
+    try:
+        from nlp_engine.nlp_processor import NLPProcessor
+        _nlp = NLPProcessor()
+    except Exception:
+        _nlp = None
+
+    for e in events:
+        raw_ents = e.get("extracted_entities")
+        parsed_ents = []
+        if isinstance(raw_ents, str) and raw_ents.strip():
+            try:
+                parsed_ents = json.loads(raw_ents)
+            except Exception:
+                parsed_ents = []
+        elif isinstance(raw_ents, list):
+            parsed_ents = raw_ents
+        elif _nlp is not None:
+            parsed_ents = _nlp.extract_entities(f"{e.get('title', '')} {e.get('raw_content', '')}")
+
+        for ent in parsed_ents:
+            if isinstance(ent, dict) and ent.get("type") == "WEAPON_SYSTEM" and ent.get("text"):
+                weapon_hits.append(ent["text"])
+
+    if weapon_hits:
+        weapons = Counter(weapon_hits).most_common(3)
+        w_text = "، ".join([f"{w} ({c})" for w, c in weapons])
+        conclusions.append(f"أكثر الأسلحة ذكراً: {w_text}.")
+
+    # 5) أعلى 3 سفن/أنواع سفن
+    if vessels:
+        vessel_types = Counter([v.get("vessel_type") for v in vessels if v.get("vessel_type")])
+        top_vessels = vessel_types.most_common(3)
+        if top_vessels:
+            v_text = "، ".join([f"{v} ({c})" for v, c in top_vessels])
+            conclusions.append(f"توزيع السفن: {v_text}.")
+
+    if not conclusions:
+        conclusions.append("لا توجد بيانات أحداث كافية لاستخلاص مؤشرات تشغيلية إضافية في هذه الدورة.")
+    return conclusions
+
+
 def _shape_ar(text: Any) -> str:
     """تشكيل وربط الحروف العربية للعرض السليم في PDF (fpdf2)"""
     s = str(text or "")
@@ -125,13 +206,30 @@ class ReportGenerator:
             badge_color = "#10b981"
             target_events = events[:15]
 
-        # 1. بناء محتوى Markdown
+        # حساب التحليلات البحثية والدلالية والزمنية والمكانية (التحسينات 3 و 5 و 6 و 7)
+        research = self._compute_research_analytics(target_events, vessels, kpis, now_str)
+        dynamic_conclusions = _generate_dynamic_conclusions(target_events, vessels, kpis)
+        exec_summary = research["executive_summary"]
+        top_keywords_10 = research["top_keywords_10"]
+        top_keywords_5 = top_keywords_10[:5]
+        top_entities_5 = research["top_entities_5"]
+        avg_sentiment = research["avg_sentiment"]
+        temporal_7days = research["temporal_7days"]
+        sources_stats = research["sources_stats"]
+        research_recs = research["research_recommendations"]
+
+        # 1. بناء محتوى Markdown المثرى بحثياً
         md_content = f"""# {title}
 **المنظومة المصدرة:** منصة الرصد العلني الاستخباراتية — Platform OX  
 **المرجعية:** الإطار المنهجي المعتمد لمركز "معطى"  
 **رقم التقرير المرجعي:** `{report_id}`  
 **تاريخ وتوقيت الإصدار:** {now_str}  
 **درجة التصنيف التشغيلي:** **{classification}**  
+
+---
+
+## الملخص التنفيذي (Executive Summary)
+{exec_summary}
 
 ---
 
@@ -143,23 +241,53 @@ class ReportGenerator:
 
 ---
 
-## 2. جدول الرصد الميداني والوقائع المفهرسة
-| المعرف | عنوان الحدث / البرقية | التصنيف | مستوى التوتر | الموقع | حالة التحقق |
-| :---: | :--- | :---: | :---: | :---: | :---: |
+## 2. المؤشرات الدلالية والكلمات المفتاحية الأكثر تكراراً
+* **معدل التوتر/المشاعر العام:** `{avg_sentiment}`
+* **أعلى 5 كلمات مفتاحية من العناوين:** {"، ".join(f"{w} ({c})" for w, c in top_keywords_5) if top_keywords_5 else "غير متوفر"}
+* **أعلى 5 كيانات مستخرجة:** {"، ".join(f"{e} ({c})" for e, c in top_entities_5) if top_entities_5 else "غير متوفر"}
+* **أعلى 10 كلمات مفتاحية عبر الأحداث:** {"، ".join(f"{w} ({c})" for w, c in top_keywords_10) if top_keywords_10 else "غير متوفر"}
+
+---
+
+## 3. جدول الرصد الميداني والوقائع المفهرسة
+| المعرف | عنوان الحدث / البرقية | التصنيف | مستوى التوتر | الموقع | المسافة عن باب المندب | حالة التحقق |
+| :---: | :--- | :---: | :---: | :---: | :---: | :---: |
 """
         for ev in target_events:
             ev_id = ev.get('id', '-')
-            ev_title = ev.get('title', '').replace('\n', ' ')[:75]
+            ev_title = ev.get('title', '').replace('\n', ' ')[:70]
             ev_cat = ev.get('event_category', 'عام')
             ev_urgency = ev.get('urgency_level', 'روتينية')
             ev_loc = ev.get('location_name', 'غير محدد')
+            dkm, dnm = self._get_bab_distance(ev)
+            ev_dist = f"{dkm} كم ({dnm} ميل)"
             ev_status = ev.get('fact_check_status', 'قيد التحقق')
-            md_content += f"| {ev_id} | {ev_title}... | {ev_cat} | {ev_urgency} | {ev_loc} | {ev_status} |\n"
+            md_content += f"| {ev_id} | {ev_title}... | {ev_cat} | {ev_urgency} | {ev_loc} | {ev_dist} | {ev_status} |\n"
 
         md_content += f"""
 ---
 
-## 3. وضع الملاحة والقطع البحرية في مضيق باب المندب والبحر الأحمر
+## 4. التحليل الزمني (آخر 7 أيام)
+| اليوم | عدد الأحداث |
+| :---: | :---: |
+"""
+        for day_lbl, day_cnt in temporal_7days:
+            md_content += f"| {day_lbl} | {day_cnt} |\n"
+
+        md_content += f"""
+---
+
+## 5. المصادر الرئيسية وإحصائياتها
+| المصدر | عدد الأحداث | متوسط مؤشر التهديد |
+| :--- | :---: | :---: |
+"""
+        for src_row in sources_stats:
+            md_content += f"| {src_row['source']} | {src_row['count']} | {src_row['avg_threat']}/100 |\n"
+
+        md_content += f"""
+---
+
+## 6. وضع الملاحة والقطع البحرية في مضيق باب المندب والبحر الأحمر
 | MMSI | اسم السفينة | النوع والنشاط | العلم | الإحداثيات | الوجهة | السرعة | الحالة |
 | :---: | :--- | :--- | :---: | :---: | :--- | :---: | :---: |
 """
@@ -174,16 +302,29 @@ class ReportGenerator:
             nav = v.get('nav_status', 'Under way')
             md_content += f"| {mmsi} | {name} | {vtype} | {flag} | {coords} | {dest} | {speed} | {nav} |\n"
 
+        conclusions_md = "\n".join(f"{i}. {line}" for i, line in enumerate(dynamic_conclusions, 1))
+        recs_md = "\n".join(f"- {r}" for r in research_recs)
         md_content += f"""
 ---
 
-## 4. الاستنتاجات الاستخباراتية وتقدير الموقف
-1. **أمن الملاحة والممرات:** حركة الشحن مستمرة بمواكبة قوافل الحماية الدولية في خليج عدن وباب المندب مع رصد دوريات خفر السواحل في محيط ميناء الحديدة والصليف.
-2. **التثليث الميداني ومكافحة الشائعات:** مطابقة تقارير هيئة UKMTO مع البث المباشر لإشارات AIS تدعم استبعاد الشائعات المتعلقة بالحوادث البحرية غير الموثقة.
-3. **التوصيات العملياتية:** 
-   - الإبقاء على وتيرة المسح المتوازي لجميع الخلاصات الإخبارية كل 15 دقيقة.
-   - إخطار غرفة العمليات بأي انحراف ملحوظ في مسار ناقلات الطاقة أو سفن الإغاثة.
+## 7. الاستنتاجات الاستخباراتية وتقدير الموقف (ديناميكي)
+{conclusions_md}
 
+---
+
+## 8. التوصيات البحثية
+{recs_md}
+
+---
+
+## 9. المراجع والمصادر الأصلية
+| المعرف | المصدر | تاريخ النشر | الرابط الأصلي |
+| :---: | :--- | :---: | :--- |
+"""
+        for ev in target_events:
+            md_content += f"| {ev.get('id', '-')} | {ev.get('source_label') or ev.get('source_name') or 'رصد علني'} | {ev.get('published_at') or ev.get('captured_at') or '-'} | {ev.get('raw_data_url') or '-'} |\n"
+
+        md_content += f"""
 ---
 **توقيع ضابط العمليات المناوب:** غرفة العمليات المركزية | منصة الرصد العلني Platform OX  
 **البصمة المشفرة للتقرير:** `{hashlib.sha256(md_content.encode('utf-8')).hexdigest()[:32]}`
@@ -541,6 +682,12 @@ class ReportGenerator:
     <!-- 2. جسم التقرير الاستخباراتي المتجاوب -->
     <main class="report-container">
         
+        <!-- الملخص التنفيذي -->
+        <h2 class="section-title">📝 الملخص التنفيذي (Executive Summary)</h2>
+        <div style="background: rgba(2, 132, 199, 0.14); border-right: 4px solid #38bdf8; padding: 14px 16px; border-radius: 10px; line-height: 1.75; margin-bottom: 20px;">
+            {exec_summary}
+        </div>
+
         <!-- المؤشرات العامة (KPIs) -->
         <div class="kpi-grid">
             <div class="kpi-card">
@@ -576,6 +723,7 @@ class ReportGenerator:
                         <th>التصنيف</th>
                         <th>مستوى الأهمية</th>
                         <th>الموقع الجغرافي</th>
+                        <th>المسافة عن باب المندب</th>
                         <th>حالة التحقق</th>
                     </tr>
                 </thead>
@@ -584,13 +732,15 @@ class ReportGenerator:
         for ev in target_events[:10]:
             is_crit = ev.get('urgency_level') == 'قصوى'
             cls_name = "tag-critical" if is_crit else "tag-normal"
+            dkm, dnm = self._get_bab_distance(ev)
             html_content += f"""
                     <tr>
                         <td><b>#{ev.get('id', '-')}</b></td>
-                        <td>{ev.get('title', '')[:75]}...</td>
+                        <td>{ev.get('title', '')[:70]}...</td>
                         <td>{ev.get('event_category', 'عام')}</td>
                         <td><span class="{cls_name}">{ev.get('urgency_level', 'روتينية')}</span></td>
                         <td>📍 {ev.get('location_name', '-')}</td>
+                        <td>{dkm} كم ({dnm} ميل)</td>
                         <td>{ev.get('fact_check_status', '-')}</td>
                     </tr>
             """
@@ -637,13 +787,53 @@ class ReportGenerator:
             </table>
         </div>
 
-        <!-- التوصيات الاستخباراتية -->
-        <h2 class="section-title">🛡️ التوصيات الاستخباراتية وتقدير الموقف الميداني</h2>
+        <!-- المؤشرات الدلالية والكلمات المفتاحية الأكثر تكراراً -->
+        <h2 class="section-title">🧠 المؤشرات الدلالية والكلمات المفتاحية الأكثر تكراراً</h2>
+        <div style="background: rgba(30, 41, 59, 0.45); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 12px; padding: 14px; margin-bottom: 18px;">
+            <p><b>معدل التوتر العام (من المشاعر):</b> <code>{avg_sentiment}</code></p>
+            <p><b>أعلى 5 كيانات مستخرجة:</b> {" ، ".join(f"{e} ({c})" for e, c in top_entities_5) if top_entities_5 else "غير متوفر"}</p>
+            <p><b>أعلى 10 كلمات مفتاحية تكراراً:</b> {" ، ".join(f"<span style='background:#0284c7;color:#fff;padding:2px 8px;border-radius:12px;font-size:12px;margin:2px;display:inline-block;'>{w} ({c})</span>" for w, c in top_keywords_10) if top_keywords_10 else "غير متوفر"}</p>
+        </div>
+
+        <!-- التحليل الزمني (آخر 7 أيام) -->
+        <h2 class="section-title">📈 التحليل الزمني للأحداث (آخر 7 أيام)</h2>
+        <div style="background: rgba(30, 41, 59, 0.45); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 12px; padding: 14px; margin-bottom: 18px;">
+            {"".join(f"<div style='display:flex;align-items:center;gap:10px;margin:5px 0;'><span style='min-width:95px;font-size:12px;'>{d_lbl}</span><div style='flex:1;background:rgba(148,163,184,0.2);border-radius:6px;height:14px;overflow:hidden;'><div style='width:{min(100, d_cnt * 10)}%;background:#38bdf8;height:100%;'></div></div><span style='min-width:30px;font-weight:700;'>{d_cnt}</span></div>" for d_lbl, d_cnt in temporal_7days)}
+        </div>
+
+        <!-- جدول المصادر الرئيسية -->
+        <h2 class="section-title">📰 المصادر الرئيسية وتقييمها</h2>
+        <div class="table-responsive">
+            <table>
+                <thead><tr><th>المصدر</th><th>عدد الأحداث</th><th>متوسط مؤشر التهديد</th></tr></thead>
+                <tbody>
+                    {"".join(f"<tr><td>{s['source']}</td><td>{s['count']}</td><td>{s['avg_threat']}/100</td></tr>" for s in sources_stats)}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- التوصيات والاستنتاجات الديناميكية -->
+        <h2 class="section-title">🛡️ الاستنتاجات الاستخباراتية وتقدير الموقف (ديناميكي)</h2>
         <ul class="recommendations-list">
-            <li><b>المراقبة اللحظية للممرات الحيوية:</b> استمرار رفع وتيرة المسح المتوازي لمضيق باب المندب، خليج عدن، ومحيط ميناء الحديدة والصليف.</li>
-            <li><b>التثليث الميداني ومكافحة الشائعات:</b> مطابقة إشارات الرادار البحري AIS مع التحذيرات البحرية (UKMTO) للتأكد من دقة أي بلاغ بحري قبل رفعه لصناع القرار.</li>
-            <li><b>تأمين سلاسل الإمداد الإغاثي:</b> متابعة مرافقة وتفريغ سفن الحبوب والمواد التموينية بانتظام والتنسيق مع خفر السواحل ومؤسسات الموانئ.</li>
+            {"".join(f"<li>{line}</li>" for line in dynamic_conclusions)}
         </ul>
+
+        <!-- التوصيات البحثية -->
+        <h2 class="section-title">🔬 التوصيات البحثية المستقبلية</h2>
+        <ul class="recommendations-list">
+            {"".join(f"<li>{r}</li>" for r in research_recs)}
+        </ul>
+
+        <!-- المراجع والمصادر الأصلية -->
+        <h2 class="section-title">🔗 المراجع والمصادر الأصلية</h2>
+        <div class="table-responsive">
+            <table>
+                <thead><tr><th>المعرف</th><th>المصدر</th><th>تاريخ النشر</th><th>الرابط الأصلي</th></tr></thead>
+                <tbody>
+                    {"".join(f"<tr><td>#{ev.get('id', '-')}</td><td>{ev.get('source_label') or ev.get('source_name') or 'رصد علني'}</td><td>{ev.get('published_at') or ev.get('captured_at') or '-'}</td><td><a href='{ev.get('raw_data_url') or '#'}' target='_blank' style='color:#38bdf8;'>رابط المصدر</a></td></tr>" for ev in target_events)}
+                </tbody>
+            </table>
+        </div>
 
         <!-- 3. الفوتير: بحجم 120 بكسل ولكن غير ثابت (ينتقل مع نهاية المحتوى) -->
         <footer class="non-fixed-footer-banner">
@@ -734,10 +924,126 @@ class ReportGenerator:
             "kpis": kpis,
             "events": target_events,
             "vessels": vessels[:15],
+            "research": research,
+            "dynamic_conclusions": dynamic_conclusions,
             "snapshots": snapshots,
             "archive_id": archive_html_id,
             "sha256_hash": html_hash,
             "timestamp": now_str,
+        }
+
+    def _get_bab_distance(self, ev: Dict[str, Any]) -> tuple:
+        """حساب المسافة عن باب المندب (كم + ميل بحري) من الحدث أو إحداثياته"""
+        dkm = ev.get("distance_to_bab_el_mandeb_km")
+        dnm = ev.get("distance_to_bab_el_mandeb_nm")
+        if dkm is not None and dnm is not None:
+            return round(float(dkm), 1), round(float(dnm), 1)
+        try:
+            from spatial_gis.spatial_analyzer import SpatialGISAnalyzer
+            gis = SpatialGISAnalyzer()
+            lat = ev.get("latitude")
+            lon = ev.get("longitude")
+            if lat is None or lon is None:
+                lat, lon = gis.resolve_location(ev.get("location_name") or "اليمن")
+            km = gis.haversine_distance_km(float(lat), float(lon), 12.5860, 43.3420)
+            nm = gis.haversine_distance_nautical_miles(float(lat), float(lon), 12.5860, 43.3420)
+            return round(km, 1), round(nm, 1)
+        except Exception:
+            return 0.0, 0.0
+
+    def _compute_research_analytics(
+        self,
+        events: List[Dict[str, Any]],
+        vessels: List[Dict[str, Any]],
+        kpis: Dict[str, Any],
+        now_str: str
+    ) -> Dict[str, Any]:
+        """توليد التحليلات البحثية الشاملة: الملخص التنفيذي، الكلمات المفتاحية، التحليل الزمني 7 أيام، المصادر، والتوصيات البحثية"""
+        from nlp_engine.nlp_processor import NLPProcessor
+        nlp = NLPProcessor()
+
+        kw_counter: Counter = Counter()
+        ent_counter: Counter = Counter()
+        source_map: Dict[str, List[float]] = {}
+        sent_scores: List[float] = []
+        threat_vals: List[float] = []
+
+        for ev in events:
+            title_txt = str(ev.get("title", ""))
+            raw_txt = str(ev.get("raw_content", "") or title_txt)
+            kws = nlp.extract_keywords(f"{title_txt} {raw_txt}", top_n=10)
+            kw_counter.update(kws)
+
+            ents = nlp.extract_entities(f"{title_txt} {raw_txt}")
+            for ent in ents:
+                if ent.get("text"):
+                    ent_counter[ent["text"]] += 1
+
+            sc = float(ev.get("sentiment_score", 0.0) or 0.0)
+            sent_scores.append(sc)
+            ti = float(ev.get("threat_index") if ev.get("threat_index") is not None else max(10.0, min(95.0, 50.0 - sc * 40.0)))
+            threat_vals.append(ti)
+
+            src_name = str(ev.get("source_label") or ev.get("source_name") or "رصد علني")
+            source_map.setdefault(src_name, []).append(ti)
+
+        top_kw_10 = kw_counter.most_common(10)
+        top_ent_5 = ent_counter.most_common(5)
+        avg_sent = round(sum(sent_scores) / len(sent_scores), 2) if sent_scores else 0.0
+        avg_threat = round(sum(threat_vals) / len(threat_vals), 1) if threat_vals else 0.0
+
+        # التحليل الزمني لآخر 7 أيام
+        today = datetime.date.today()
+        day_counts: Dict[str, int] = {(today - datetime.timedelta(days=i)).strftime("%Y-%m-%d"): 0 for i in range(6, -1, -1)}
+        all_recent = db.get_events(limit=300)
+        for ev in all_recent:
+            ts = str(ev.get("captured_at") or ev.get("published_at") or "")[:10]
+            if ts in day_counts:
+                day_counts[ts] += 1
+        temporal_7days = list(day_counts.items())
+
+        # إحصائيات المصادر الرئيسية
+        sources_stats = []
+        for s_name, t_list in sorted(source_map.items(), key=lambda x: len(x[1]), reverse=True):
+            sources_stats.append({
+                "source": s_name,
+                "count": len(t_list),
+                "avg_threat": round(sum(t_list) / len(t_list), 1),
+            })
+
+        # الملخص التنفيذي الديناميكي (3-5 أسطر)
+        loc_counts = Counter([e.get("location_name") for e in events if e.get("location_name") and e.get("location_name") != "غير محدد"])
+        top_locs = [l for l, _ in loc_counts.most_common(3)] or ["اليمن"]
+        dates_list = [str(e.get("captured_at") or e.get("published_at") or now_str)[:10] for e in events if (e.get("captured_at") or e.get("published_at"))]
+        start_d = min(dates_list) if dates_list else now_str[:10]
+        end_d = max(dates_list) if dates_list else now_str[:10]
+        top_headline = events[0].get("title", "استمرار الرصد الميداني والملاحي")[:90] if events else "استقرار عام في مسرح العمليات"
+
+        exec_summary = (
+            f"خلال الفترة من {start_d} إلى {end_d}، تم تحليل {len(events)} حدثاً ضمن هذا التقرير (من إجمالي {kpis.get('total_events', 0)} حدثاً مفهرساً)، "
+            f"وتركز معظمها جغرافياً في: {', '.join(top_locs)}. "
+            f"بلغ متوسط مؤشر التهديد العام {avg_threat:.0f}/100 بمعدل مشاعر {avg_sent}، "
+            f"مع متابعة {len(vessels)} قطعة بحرية في البحر الأحمر وخليج عدن. أبرز التطورات: {top_headline}."
+        )
+
+        # التوصيات البحثية الديناميكية
+        top_region = top_locs[0]
+        top_event_title = events[0].get("title", "الأحداث الملاحية الجارية")[:65] if events else "التغطية الملاحية"
+        research_recs = [
+            f"يوصى بدراسة تصاعد وتيرة الأحداث في منطقة ({top_region}) ومقارنتها بالمتوسط الأسبوعي.",
+            f"يوصى بمقارنة التغطية الإعلامية للحدث: \"{top_event_title}\" بين المصادر اليمنية المباشرة والمصادر الدولية.",
+            f"يوصى بتحليل الارتباط بين تكرار الكلمات المفتاحية ({', '.join(w for w, _ in top_kw_10[:3]) or 'الملاحة'}) وتغيرات حركة السفن في باب المندب.",
+        ]
+
+        return {
+            "executive_summary": exec_summary,
+            "top_keywords_10": top_kw_10,
+            "top_entities_5": top_ent_5,
+            "avg_sentiment": avg_sent,
+            "avg_threat": avg_threat,
+            "temporal_7days": temporal_7days,
+            "sources_stats": sources_stats,
+            "research_recommendations": research_recs,
         }
 
     def _build_full_snapshots(
@@ -876,6 +1182,17 @@ class ReportGenerator:
         pdf.multi_cell(0, 7, _shape_ar(kpi_text), align="R")
         pdf.ln(3)
 
+        # 1.5 الملخص التنفيذي والكلمات المفتاحية
+        res_data = rep.get("research") or {}
+        if res_data.get("executive_summary"):
+            pdf.set_font(font_name, "B", 11)
+            pdf.set_text_color(2, 132, 199)
+            pdf.cell(0, 7, _shape_ar("الملخص التنفيذي"), align="R", ln=1)
+            pdf.set_font(font_name, "", 9.5)
+            pdf.set_text_color(15, 23, 42)
+            pdf.multi_cell(0, 6, _shape_ar(res_data["executive_summary"]), align="R")
+            pdf.ln(2)
+
         # 2. جدول الرصد الميداني بكامل تفاصيله
         pdf.set_font(font_name, "B", 12)
         pdf.set_text_color(2, 132, 199)
@@ -883,7 +1200,8 @@ class ReportGenerator:
         pdf.set_font(font_name, "", 9.5)
         pdf.set_text_color(15, 23, 42)
         for idx, ev in enumerate(rep.get("events", [])[:15], 1):
-            ev_line = f"{idx}. [{ev.get('urgency_level', 'روتينية')} | {ev.get('event_category', 'عام')} | {ev.get('location_name', 'اليمن')}] {ev.get('title', '')}"
+            dkm, dnm = self._get_bab_distance(ev)
+            ev_line = f"{idx}. [{ev.get('urgency_level', 'روتينية')} | {ev.get('event_category', 'عام')} | {ev.get('location_name', 'اليمن')} | {dkm} كم] {ev.get('title', '')}"
             pdf.multi_cell(0, 6, _shape_ar(ev_line), align="R")
             if ev.get("raw_data_url"):
                 pdf.set_text_color(71, 85, 105)
@@ -891,6 +1209,20 @@ class ReportGenerator:
                 pdf.multi_cell(0, 5, f"   URL: {str(ev.get('raw_data_url'))[:95]}", align="L")
                 pdf.set_font(font_name, "", 9.5)
                 pdf.set_text_color(15, 23, 42)
+
+        # الاستنتاجات الديناميكية والكلمات المفتاحية
+        dyn_conc = rep.get("dynamic_conclusions") or _generate_dynamic_conclusions(rep.get("events", []), rep.get("vessels", []), kpis)
+        pdf.ln(2)
+        pdf.set_font(font_name, "B", 11)
+        pdf.set_text_color(2, 132, 199)
+        pdf.cell(0, 7, _shape_ar("الاستنتاجات الديناميكية والتوصيات البحثية"), align="R", ln=1)
+        pdf.set_font(font_name, "", 9.5)
+        pdf.set_text_color(15, 23, 42)
+        for line in dyn_conc + res_data.get("research_recommendations", []):
+            pdf.multi_cell(0, 5.5, _shape_ar(f"- {line}"), align="R")
+        if res_data.get("top_keywords_10"):
+            kw_line = "الكلمات المفتاحية: " + " | ".join(f"{w} ({c})" for w, c in res_data["top_keywords_10"])
+            pdf.multi_cell(0, 5.5, _shape_ar(kw_line), align="R")
 
         pdf.ln(3)
         # 3. وضع الملاحة والسفن
@@ -1016,25 +1348,34 @@ class ReportGenerator:
             t_kpi.rows[0].cells[idx].text = htxt
             t_kpi.rows[1].cells[idx].text = kpi_vals[idx]
 
-        # 2. جدول الأحداث الكامل (مع النص الكامل والرابط الأصلي)
+        # 2. جدول الأحداث الكامل (مع النص الكامل والرابط الأصلي والمسافة عن باب المندب)
+        res_data = rep.get("research") or {}
+        if res_data.get("executive_summary"):
+            h_es = doc.add_heading("الملخص التنفيذي", level=2)
+            _set_rtl_paragraph(h_es)
+            p_es = doc.add_paragraph(res_data["executive_summary"])
+            _set_rtl_paragraph(p_es)
+
         h2 = doc.add_heading("2. سجل الأحداث المفهرسة بكامل التفاصيل", level=2)
         _set_rtl_paragraph(h2)
         ev_list = rep.get("events", [])
-        t_ev = doc.add_table(rows=1, cols=7)
+        t_ev = doc.add_table(rows=1, cols=8)
         t_ev.style = "Table Grid"
         _set_rtl_table(t_ev)
-        ev_headers = ["العنوان", "التصنيف", "الأهمية", "الموقع", "التاريخ", "الرابط الأصلي", "النص الكامل"]
+        ev_headers = ["العنوان", "التصنيف", "الأهمية", "الموقع", "المسافة عن باب المندب", "التاريخ", "الرابط الأصلي", "النص الكامل"]
         for i, htxt in enumerate(ev_headers):
             t_ev.rows[0].cells[i].text = htxt
         for ev in ev_list:
+            dkm, dnm = self._get_bab_distance(ev)
             row_cells = t_ev.add_row().cells
             row_cells[0].text = str(ev.get("title", ""))
             row_cells[1].text = str(ev.get("event_category", ""))
             row_cells[2].text = str(ev.get("urgency_level", ""))
             row_cells[3].text = str(ev.get("location_name", ""))
-            row_cells[4].text = str(ev.get("published_at") or ev.get("captured_at") or "")
-            row_cells[5].text = str(ev.get("raw_data_url", ""))
-            row_cells[6].text = str(ev.get("raw_content", ""))[:600]
+            row_cells[4].text = f"{dkm} كم ({dnm} ميل)"
+            row_cells[5].text = str(ev.get("published_at") or ev.get("captured_at") or "")
+            row_cells[6].text = str(ev.get("raw_data_url", ""))
+            row_cells[7].text = str(ev.get("raw_content", ""))[:600]
 
         # 3. جدول السفن
         h3 = doc.add_heading("3. وضع الملاحة والقطع البحرية (AIS)", level=2)
@@ -1054,15 +1395,12 @@ class ReportGenerator:
             rc[4].text = str(v.get("destination", ""))
             rc[5].text = f"{v.get('speed_knots', 0)} kn | ({v.get('current_latitude', 0):.2f}, {v.get('current_longitude', 0):.2f})"
 
-        # 4. الاستنتاجات والتوصيات والتذييل
-        h4 = doc.add_heading("4. الاستنتاجات الاستخباراتية والتوصيات", level=2)
+        # 4. الاستنتاجات والتوصيات الديناميكية والتذييل
+        h4 = doc.add_heading("4. الاستنتاجات الاستخباراتية والتوصيات البحثية", level=2)
         _set_rtl_paragraph(h4)
-        for line in [
-            "1. متابعة الملاحة البحرية ومواكبة قوافل الشحن في البحر الأحمر ومضيق باب المندب.",
-            "2. مواصلة التثليث الميداني بين المصادر اليمنية المباشرة وبيانات AIS وإشعارات UKMTO.",
-            "3. الإبقاء على دورة الرصد الآلي وتدقيق قسم سياسي/عام عبر فلتر الصلة اليمنية.",
-        ]:
-            p_c = doc.add_paragraph(line)
+        dyn_conc = rep.get("dynamic_conclusions") or _generate_dynamic_conclusions(ev_list, v_list, kpis)
+        for line in dyn_conc + res_data.get("research_recommendations", []):
+            p_c = doc.add_paragraph(f"• {line}")
             _set_rtl_paragraph(p_c)
 
         buf = io.BytesIO()

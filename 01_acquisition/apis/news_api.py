@@ -299,9 +299,10 @@ class NewsAggregator:
         full_text = f"{title} {summary}".strip()
         raw_hash = compute_news_hash(title)
 
-        # 1. فحص التكرار أولاً عبر SHA-256
+        # 1. فحص التكرار أولاً عبر SHA-256 + تثليث المصادر (source_count + 1)
         if active_db.event_hash_exists(raw_hash):
-            return {"status": "duplicate", "reason": "sha256_hash_exists", "id": 0, "hash": raw_hash}
+            new_sc = active_db.increment_source_count_by_hash(raw_hash) if hasattr(active_db, "increment_source_count_by_hash") else 2
+            return {"status": "duplicate", "reason": "sha256_hash_exists", "id": 0, "hash": raw_hash, "source_count": new_sc}
 
         # 2. التصنيف وفلترة قسم سياسي/عام فقط + فلتر النطاق البحري للمصادر الدولية (الخطوة 4.3)
         cat_info = classify_event(title, summary, full_text)
@@ -333,22 +334,37 @@ class NewsAggregator:
             })
             return {"status": "rejected", "reason": cat_info.get("rejection_reason"), "id": rej_id, "hash": raw_hash}
 
+        import json
+        from nlp_engine.nlp_processor import NLPProcessor
+        nlp = NLPProcessor()
         sent = SentimentAnalyzer().analyze_sentiment(full_text)
         gis = SpatialGISAnalyzer()
         loc = cat_info.get("location_name") or "اليمن"
         coords = gis.resolve_location(loc)
+        dist_km = gis.haversine_distance_km(coords[0], coords[1], 12.5860, 43.3420)
+        dist_nm = gis.haversine_distance_nautical_miles(coords[0], coords[1], 12.5860, 43.3420)
+        extracted_kw = json.dumps(nlp.extract_keywords(full_text, top_n=10), ensure_ascii=False)
+        ents = nlp.extract_entities(full_text)
         trust_score = int(item.get("trust_score", 70))
+
+        if trust_score >= 90:
+            fact_status = "مؤكد برقيات رسمية"
+        elif len(ents) >= 2 and trust_score >= 70:
+            fact_status = "قيد التثليث الميداني"
+        else:
+            fact_status = "رصد أولي مفتوح"
+
         ev_id = active_db.add_event({
             "title": title,
             "raw_content": full_text,
-            "cleaned_content": full_text,
+            "cleaned_content": nlp.clean_arabic_text(full_text),
             "source_id": 1,
             "published_at": item.get("pub_date", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
             "event_category": cat_info["category"],
             "sentiment_score": sent["score"],
             "sentiment_label": sent["label"],
             "urgency_level": "قصوى" if sent["tension_level"] == "قصوى" else "متوسطة",
-            "fact_check_status": "مؤكد (مصدر يمني مباشر)" if trust_score >= 90 else "رصد مفتوح",
+            "fact_check_status": fact_status,
             "latitude": coords[0],
             "longitude": coords[1],
             "location_name": loc,
@@ -358,6 +374,11 @@ class NewsAggregator:
             "relevance_reason": cat_info.get("rejection_reason"),
             "trust_score": trust_score,
             "source_label": item.get("source_name", item.get("source", "RSS")),
+            "source_count": 1,
+            "threat_index": int(sent.get("threat_index", 20)),
+            "distance_to_bab_el_mandeb_km": dist_km,
+            "distance_to_bab_el_mandeb_nm": dist_nm,
+            "extracted_keywords": extracted_kw,
         })
         if ev_id == 0:
             return {"status": "duplicate", "reason": "sha256_hash_exists", "id": 0, "hash": raw_hash}

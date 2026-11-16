@@ -1,13 +1,23 @@
 import os
 import sys
 import re
+from collections import Counter
 from typing import List, Dict, Any
 
 _PROCESSING_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _PROCESSING_DIR not in sys.path:
     sys.path.insert(0, _PROCESSING_DIR)
 
-from filters.yemen_relevance_filter import match_whole_term
+from filters.yemen_relevance_filter import match_whole_term, YEMEN_CORE_ENTITIES, _clean_html_and_urls
+
+ARABIC_STOPWORDS = {
+    "في", "من", "على", "إلى", "الى", "عن", "مع", "هذا", "هذه", "التي", "الذي",
+    "الذين", "أن", "إن", "كان", "كانت", "قد", "لم", "لن", "لا", "ما", "هو", "هي",
+    "هم", "نحن", "أو", "و", "ثم", "بل", "لكن", "حتى", "منذ", "بين", "خلال", "حول",
+    "بعد", "قبل", "أمام", "ضد", "نحو", "عبر", "دون", "غير", "كل", "بعض", "أي",
+    "the", "and", "for", "with", "from", "that", "this", "are", "was", "were",
+    "into", "over", "near", "after", "before", "about", "has", "have", "had"
+}
 
 
 class NLPProcessor:
@@ -49,6 +59,8 @@ class NLPProcessor:
             "مدفعية", "زورق مفخخ", "مضاد للسفن", "دفاع جوي", "تشويش إلكتروني",
             "مقذوف", "عبوة ناسفة"
         ]
+        # قاموس الشخصيات والقيادات المستورد من فلتر الصلة اليمنية (التحسين 4.1)
+        self.persons_lexicon = list(YEMEN_CORE_ENTITIES.get("persons_and_leaders", []))
 
     def clean_arabic_text(self, text: str) -> str:
         """تنظيف النص وإزالة الروابط وعلامات التشكيل وتوحيد الحروف"""
@@ -93,7 +105,26 @@ class NLPProcessor:
                 seen.add(wpn)
                 entities.append({"text": wpn, "type": "WEAPON_SYSTEM", "confidence": 0.94})
 
+        # رصد الشخصيات والقيادات (PERSON - التحسين 4.1)
+        for person in self.persons_lexicon:
+            if person not in seen and match_whole_term(text, person):
+                seen.add(person)
+                entities.append({"text": person, "type": "PERSON", "confidence": 0.93})
+
         return entities
+
+    def extract_keywords(self, text: str, top_n: int = 10) -> List[str]:
+        """استخراج أهم الكلمات المفتاحية من النص بعد إزالة كلمات التوقف (التحسين 6.1)"""
+        if not text:
+            return []
+        clean_txt = _clean_html_and_urls(text)
+        tokens = re.findall(r'[\u0621-\u064AA-Za-z0-9\-]{3,}', clean_txt)
+        filtered = [
+            t for t in tokens
+            if t.lower() not in ARABIC_STOPWORDS and t not in ARABIC_STOPWORDS
+        ]
+        counts = Counter(filtered)
+        return [word for word, _ in counts.most_common(top_n)]
 
     def summarize_text(self, text: str, max_sentences: int = 2) -> str:
         """تلخيص النص واستخلاص الجمل الجوهرية"""

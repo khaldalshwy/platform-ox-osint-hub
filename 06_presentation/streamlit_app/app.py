@@ -1729,8 +1729,22 @@ if menu == "غرفة العمليات المركزية (Live Ops)":
                         st.write("**التقييم الاستخباري والمكاني:**")
                         lat_v = ev.get('latitude', 13.5) or 13.5
                         lon_v = ev.get('longitude', 43.5) or 43.5
-                        st.write(f"- نبرة النص: **{ev.get('sentiment_label', 'محايد')}**")
+                        d_km = ev.get("distance_to_bab_el_mandeb_km")
+                        d_nm = ev.get("distance_to_bab_el_mandeb_nm")
+                        if d_km is None or d_nm is None:
+                            gis_calc = SpatialGISAnalyzer()
+                            d_km = gis_calc.haversine_distance_km(float(lat_v), float(lon_v), 12.5860, 43.3420)
+                            d_nm = gis_calc.haversine_distance_nautical_miles(float(lat_v), float(lon_v), 12.5860, 43.3420)
+                        kw_raw = ev.get("extracted_keywords")
+                        try:
+                            kw_list = json.loads(kw_raw) if isinstance(kw_raw, str) and kw_raw.strip() else nlp_reader.extract_keywords(ev.get("raw_content", ""), top_n=8)
+                        except Exception:
+                            kw_list = nlp_reader.extract_keywords(ev.get("raw_content", ""), top_n=8)
+                        st.write(f"- نبرة النص: **{ev.get('sentiment_label', 'محايد')}** | عدد المصادر: **{ev.get('source_count', 1)}**")
                         st.write(f"- الإحداثيات: `{lat_v:.3f}, {lon_v:.3f}`")
+                        st.write(f"- 🧭 المسافة عن باب المندب: **{d_km} كم** (**{d_nm} ميل بحري**)")
+                        if kw_list:
+                            st.write(f"- 🔑 الكلمات المفتاحية: `{'` ، `'.join(kw_list[:8])}`")
                         st.markdown(f"- 🌍 [فتح موقع الحدث على Google Earth 3D](https://earth.google.com/web/@{lat_v},{lon_v},300a,25000d,35y,0h,40t,0r)")
                         if ev.get("raw_data_url") and ev.get("raw_data_url").startswith("http"):
                             st.markdown(f"- 🌐 [زيارة الرابط الأصلي للخبر في المصدر المفتوح]({ev['raw_data_url']})")
@@ -2269,6 +2283,30 @@ elif menu == "أرشيف التقارير (Reports Archive)":
             use_container_width=True,
             hide_index=True,
         )
+
+        res_exp1, res_exp2 = st.columns(2)
+        with res_exp1:
+            meta_export_cols = [c for c in ["id", "report_type", "report_format", "generated_at", "file_size", "events_count", "vessels_count", "sha256_hash", "kpis_snapshot", "full_entities_json", "metadata_json"] if c in df_arch.columns]
+            st.download_button(
+                label="⬇️ تصدير الأرشيف البحثي (CSV)",
+                data=df_arch[meta_export_cols].to_csv(index=False).encode("utf-8-sig"),
+                file_name=f"research_archive_{datetime.datetime.now().strftime('%Y%m%d')}.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
+        with res_exp2:
+            arch_json_dump = json.dumps(
+                [{k: v for k, v in r.items() if k != "content"} for r in arch_rows],
+                ensure_ascii=False,
+                indent=2
+            ).encode("utf-8")
+            st.download_button(
+                label="⬇️ تصدير الأرشيف البحثي (JSON)",
+                data=arch_json_dump,
+                file_name=f"research_archive_{datetime.datetime.now().strftime('%Y%m%d')}.json",
+                mime="application/json",
+                use_container_width=True,
+            )
 
         st.markdown("---")
         selected_arch_id = st.selectbox(

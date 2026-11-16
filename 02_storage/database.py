@@ -78,6 +78,11 @@ class OSINTDatabase:
                 relevance_reason TEXT,
                 trust_score INTEGER DEFAULT 70,
                 source_label TEXT,
+                source_count INTEGER DEFAULT 1,
+                threat_index INTEGER DEFAULT 20,
+                distance_to_bab_el_mandeb_km REAL,
+                distance_to_bab_el_mandeb_nm REAL,
+                extracted_keywords TEXT,
                 FOREIGN KEY (source_id) REFERENCES sources (id)
             );
             """)
@@ -93,6 +98,16 @@ class OSINTDatabase:
                 cursor.execute("ALTER TABLE osint_events ADD COLUMN trust_score INTEGER DEFAULT 70;")
             if "source_label" not in existing_cols:
                 cursor.execute("ALTER TABLE osint_events ADD COLUMN source_label TEXT;")
+            if "source_count" not in existing_cols:
+                cursor.execute("ALTER TABLE osint_events ADD COLUMN source_count INTEGER DEFAULT 1;")
+            if "threat_index" not in existing_cols:
+                cursor.execute("ALTER TABLE osint_events ADD COLUMN threat_index INTEGER DEFAULT 20;")
+            if "distance_to_bab_el_mandeb_km" not in existing_cols:
+                cursor.execute("ALTER TABLE osint_events ADD COLUMN distance_to_bab_el_mandeb_km REAL;")
+            if "distance_to_bab_el_mandeb_nm" not in existing_cols:
+                cursor.execute("ALTER TABLE osint_events ADD COLUMN distance_to_bab_el_mandeb_nm REAL;")
+            if "extracted_keywords" not in existing_cols:
+                cursor.execute("ALTER TABLE osint_events ADD COLUMN extracted_keywords TEXT;")
 
             # جدول الأخبار المرفوضة بواسطة فلتر الصلة اليمنية
             cursor.execute("""
@@ -299,9 +314,41 @@ class OSINTDatabase:
             cursor.execute("SELECT 1 FROM osint_events WHERE raw_hash = ? LIMIT 1", (raw_hash,))
             return cursor.fetchone() is not None
 
+    def get_source_count_by_hash(self, raw_hash: str) -> int:
+        """استرجاع عدد المصادر التي أوردت نفس الخبر (لتثليث التغطية)"""
+        if not raw_hash:
+            return 1
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COALESCE(source_count, 1) as sc FROM osint_events WHERE raw_hash = ? LIMIT 1", (raw_hash,))
+            row = cursor.fetchone()
+            return int(row["sc"]) if row else 1
+
+    def increment_source_count_by_hash(self, raw_hash: str) -> int:
+        """زيادة عداد المصادر بمقدار 1 عند ورود نفس الخبر من مصدر إضافي وترقية حالة التحقق"""
+        if not raw_hash:
+            return 1
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                UPDATE osint_events
+                SET source_count = COALESCE(source_count, 1) + 1,
+                    fact_check_status = 'مؤكد برقيات رسمية'
+                WHERE raw_hash = ?
+                """,
+                (raw_hash,),
+            )
+            conn.commit()
+            cursor.execute("SELECT COALESCE(source_count, 1) as sc FROM osint_events WHERE raw_hash = ? LIMIT 1", (raw_hash,))
+            row = cursor.fetchone()
+            return int(row["sc"]) if row else 1
+
     def add_event(self, event_data: Dict[str, Any]) -> int:
         raw_hash = event_data.get("raw_hash", "")
         if raw_hash and self.event_hash_exists(raw_hash):
+            # تثليث التغطية: زيادة source_count عند ورود الخبر من مصدر إضافي
+            self.increment_source_count_by_hash(raw_hash)
             return 0
         with self._get_connection() as conn:
             cursor = conn.cursor()
@@ -310,8 +357,10 @@ class OSINTDatabase:
                     title, raw_content, cleaned_content, source_id, published_at,
                     event_category, sentiment_score, sentiment_label, urgency_level,
                     fact_check_status, latitude, longitude, location_name, raw_data_url, raw_hash,
-                    relevance_score, relevance_reason, trust_score, source_label
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    relevance_score, relevance_reason, trust_score, source_label,
+                    source_count, threat_index, distance_to_bab_el_mandeb_km, distance_to_bab_el_mandeb_nm,
+                    extracted_keywords
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 event_data.get("title", ""),
                 event_data.get("raw_content", ""),
@@ -332,6 +381,11 @@ class OSINTDatabase:
                 event_data.get("relevance_reason"),
                 event_data.get("trust_score", 70),
                 event_data.get("source_label", "رصد علني مباشر"),
+                int(event_data.get("source_count", 1)),
+                int(event_data.get("threat_index", 20)),
+                event_data.get("distance_to_bab_el_mandeb_km"),
+                event_data.get("distance_to_bab_el_mandeb_nm"),
+                event_data.get("extracted_keywords", "[]"),
             ))
             conn.commit()
             return cursor.lastrowid

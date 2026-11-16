@@ -103,21 +103,38 @@ class SentimentAnalyzer:
     """
     محرك تحليل المشاعر والنبرة ومؤشر التهديد الاستخباراتي لمنصة OSINT Platform OX
     يقيس القطبية (Polarity) ومستوى التوتر والحدة اللفظية واحتمالية الشائعات في المنشورات والأخبار،
-    ويدمج التصنيف الرباعي مع فلتر الصلة اليمنية لقسم 'سياسي/عام'.
+    ويدمج التصنيف الرباعي مع فلتر الصلة اليمنية لقسم 'سياسي/عام' ومعالجة عبارات النفي.
     """
+    NEGATION_PHRASES = {
+        "لا صحة", "نفي", "نفى", "فشل", "إحباط", "أحبط", "دون إصابات",
+        "بدون خسائر", "لم يقع", "لم يسفر", "لم يتسبب", "لم ينجح",
+        "لم يتمكن", "لم يستهدف", "لم يسقط", "لم يصب", "لم يقتل",
+        "لم يضر", "لم يؤثر", "لم يحدث", "لم يشهد", "لم يسجل",
+        "لم يعلن", "لم يتبن", "لم يعترف", "لم يؤكد", "لم ينف",
+        "لم يشر", "لم يذكر", "لم يوضح", "لم يبين", "لم يحدد",
+        "لم يكشف", "لم يصرح"
+    }
+
     def __init__(self):
-        # معجم الكلمات السلبية وعالية التوتر
+        # معجم الكلمات السلبية وعالية التوتر + المصطلحات الاقتصادية السلبية
         self.negative_keywords = [
             "استهداف", "هجوم", "انفجار", "غرق", "أزمة", "خطر", "توتر", "حرب",
             "كارثة", "اعتداء", "تدمير", "مقتل", "إصابة", "خسائر", "تهديد", "حصار",
             "صاروخ", "مسيرة", "قصف", "اشتباك", "اعتراض", "تعطيل", "إصابة مباشرة",
-            "طوارئ", "تأهب", "اشتباه"
+            "طوارئ", "تأهب", "اشتباه",
+            # مصطلحات اقتصادية ومعيشية حرجة (التحسين 1.2)
+            "تضخم", "انهيار العملة", "انهيار الريال", "توقف الصادرات", "نقص الوقود",
+            "أزمة وقود", "نقص الغذاء", "مجاعة", "غلاء", "ارتفاع الأسعار", "تدهور",
+            "انقطاع الكهرباء", "توقف الرواتب", "أزمة سيولة", "إغلاق الميناء"
         ]
-        # معجم الكلمات الإيجابية والمطمئنة
+        # معجم الكلمات الإيجابية والمطمئنة + الاقتصادية الإيجابية
         self.positive_keywords = [
             "سلام", "أمان", "استقرار", "افتتاح", "تفريغ", "إغاثة", "إنقاذ", "نجاح",
             "تنسيق", "وصول آمن", "تسهيل", "ازدهار", "تنمية", "اتفاق", "هدوء",
-            "تعافي", "سلاسة", "استئناف", "حماية", "مرافقة آمنة"
+            "تعافي", "سلاسة", "استئناف", "حماية", "مرافقة آمنة",
+            # مصطلحات اقتصادية وملاحية إيجابية (التحسين 1.3)
+            "تعزيز الاحتياطي", "تدفق البضائع", "افتتاح ميناء", "استئناف الصادرات",
+            "استقرار العملة", "تحسن اقتصادي", "وصول شحنة", "تفريغ حمولة", "تشغيل رحلة"
         ]
         # مؤشرات الشائعات والتحريض
         self.rumor_indicators = [
@@ -130,19 +147,28 @@ class SentimentAnalyzer:
         return classify_event(title=title, summary=summary, text=text, forced_category=forced_category)
 
     def analyze_sentiment(self, text: str) -> Dict[str, Any]:
-        """احتساب درجة القطبية ومؤشر التوتر والتهديد"""
+        """احتساب درجة القطبية ومؤشر التوتر والتهديد بحدود الكلمة الكاملة ومعالجة النفي"""
         if not text:
             return {
                 "score": 0.0,
                 "label": "محايد",
                 "tension_level": "منخفض",
                 "threat_index": 10,
-                "rumor_risk": "منخفض"
+                "rumor_risk": "منخفض",
+                "neg_hits": 0,
+                "pos_hits": 0,
+                "negated": False,
             }
 
-        neg_count = sum(1 for word in self.negative_keywords if word in text)
-        pos_count = sum(1 for word in self.positive_keywords if word in text)
-        rumor_count = sum(1 for word in self.rumor_indicators if word in text)
+        neg_count = sum(1 for word in self.negative_keywords if match_whole_term(text, word))
+        pos_count = sum(1 for word in self.positive_keywords if match_whole_term(text, word))
+        rumor_count = sum(1 for word in self.rumor_indicators if match_whole_term(text, word))
+
+        has_negation = any(match_whole_term(text, phr) for phr in self.NEGATION_PHRASES)
+        if has_negation and neg_count > 0:
+            # عند وجود نفي أو إحباط ("لا صحة لاستهداف سفينة")، نخفّض الكلمات السلبية بمقدار 50% (أو نتجاهل كلمة واحدة)
+            neg_count = max(0, (neg_count - 1) if neg_count <= 2 else (neg_count // 2))
+
         total = neg_count + pos_count
 
         if total == 0:
@@ -174,7 +200,8 @@ class SentimentAnalyzer:
             "threat_index": int(threat_index),
             "rumor_risk": rumor_risk,
             "neg_hits": neg_count,
-            "pos_hits": pos_count
+            "pos_hits": pos_count,
+            "negated": has_negation,
         }
 
 

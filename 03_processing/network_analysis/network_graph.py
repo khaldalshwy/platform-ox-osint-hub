@@ -32,7 +32,13 @@ class EntityNetworkGraph:
             self.nodes[target]["degree"] += 1
 
     def build_from_events(self, events: List[Dict[str, Any]]):
-        """بناء الشبكة تلقائياً من قائمة الأحداث والكيانات المشتركة"""
+        """بناء الشبكة تلقائياً من قائمة الأحداث والكيانات المشتركة (شاملاً PERSON و ORG - التحسين 4.2)"""
+        try:
+            from nlp_engine.nlp_processor import NLPProcessor
+            nlp = NLPProcessor()
+        except Exception:
+            nlp = None
+
         for ev in events:
             ev_id = f"EV_{ev.get('id', 'temp')}"
             self.add_entity_node(ev_id, ev.get("title", "")[:30], "EVENT")
@@ -48,6 +54,24 @@ class EntityNetworkGraph:
                 cat_id = f"CAT_{cat}"
                 self.add_entity_node(cat_id, cat, "CATEGORY")
                 self.add_relationship(ev_id, cat_id, "يصنف كـ", 1.0)
+
+            if nlp:
+                full_txt = f"{ev.get('title', '')} {ev.get('raw_content', '')}".strip()
+                ents = nlp.extract_entities(full_txt)
+                persons = [e["text"] for e in ents if e.get("type") == "PERSON"]
+                orgs = [e["text"] for e in ents if e.get("type") == "ORGANIZATION"]
+
+                for p_name in persons:
+                    p_id = f"PER_{p_name}"
+                    self.add_entity_node(p_id, p_name, "PERSON")
+                    self.add_relationship(ev_id, p_id, "مذكور في", 1.3)
+
+                for o_name in orgs:
+                    o_id = f"ORG_{o_name}"
+                    self.add_entity_node(o_id, o_name, "ORGANIZATION")
+                    self.add_relationship(ev_id, o_id, "مرتبط بـ", 1.2)
+                    for p_name in persons:
+                        self.add_relationship(f"PER_{p_name}", o_id, "ينتمي إلى", 1.1)
 
     def get_top_central_nodes(self, top_n: int = 5) -> List[Dict[str, Any]]:
         """استخراج أكثر الكيانات مركزية وتأثيراً في الشبكة"""
