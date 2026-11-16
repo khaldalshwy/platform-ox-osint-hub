@@ -157,9 +157,53 @@ st.markdown(f"""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap');
     
-    html, body, [class*="css"], .stMarkdown, p, span, label, div {{
+    html, body, [class*="css"] {{
+        font-family: 'Cairo', sans-serif !important;
+    }}
+
+    .main, section[data-testid="stSidebar"], .stMarkdown, .stMarkdown p, .stMarkdown li,
+    h1, h2, h3, h4, h5, h6, label, input, textarea, button,
+    .metric-card, .threat-banner-red, .threat-banner-orange, .threat-banner-green {{
         font-family: 'Cairo', sans-serif !important;
         direction: rtl;
+    }}
+
+    /* حماية أيقونات Material Symbols وشريط أدوات Streamlit العلوي من تداخل الخط أو انعكاس الاتجاه */
+    header[data-testid="stHeader"],
+    header[data-testid="stHeader"] * {{
+        direction: ltr !important;
+    }}
+    [data-testid="stIconMaterial"],
+    .material-symbols-rounded,
+    .material-icons,
+    span[data-testid="stIconMaterial"] {{
+        font-family: "Material Symbols Rounded", "Material Icons", sans-serif !important;
+        direction: ltr !important;
+        unicode-bidi: isolate !important;
+    }}
+
+    /* حماية جداول Glide Data Grid من قصّ الأعمدة الناتج عن فرض RTL على حاوية Canvas */
+    [data-testid="stDataFrame"],
+    [data-testid="stDataFrame"] * {{
+        direction: ltr !important;
+        font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif !important;
+    }}
+
+    /* إصلاح محاذاة القوائم النقطية والمرقمة في Markdown لتلتصق بالنص العربي يميناً */
+    .stMarkdown ul,
+    .stMarkdown ol {{
+        direction: rtl !important;
+        text-align: right !important;
+        padding-right: 1.65rem !important;
+        padding-left: 0 !important;
+        margin-right: 0 !important;
+        list-style-position: outside !important;
+    }}
+    .stMarkdown li {{
+        direction: rtl !important;
+        text-align: right !important;
+        margin-bottom: 6px !important;
+        line-height: 1.7 !important;
     }}
     
     .stApp, [data-testid="stAppViewContainer"], main {{
@@ -1298,7 +1342,15 @@ def render_sources_status_panel(key_prefix="main"):
     st.dataframe(
         df_sources[["المصدر", "النوع", "درجة الثقة", "الحالة", "آخر سحب", "عدد الأخبار"]],
         use_container_width=True,
-        hide_index=True
+        hide_index=True,
+        column_config={
+            "المصدر": st.column_config.TextColumn("المصدر", width="large"),
+            "النوع": st.column_config.TextColumn("النوع", width="small"),
+            "درجة الثقة": st.column_config.NumberColumn("درجة الثقة", format="%d", width="small"),
+            "الحالة": st.column_config.TextColumn("الحالة", width="medium"),
+            "آخر سحب": st.column_config.TextColumn("آخر سحب", width="medium"),
+            "عدد الأخبار": st.column_config.NumberColumn("عدد الأخبار", format="%d", width="small"),
+        }
     )
 
 
@@ -1788,10 +1840,32 @@ elif menu == "الرادار البحري وتتبع السفن (AIS)":
                 mime="text/csv",
                 use_container_width=True,
             )
+        df_v_display = df_v[['mode_badge', 'mmsi', 'vessel_name', 'vessel_type', 'flag_country', 'destination', 'speed_knots', 'nav_status', 'last_signal_at']].rename(columns={
+            'mode_badge': 'حالة الإشارة',
+            'mmsi': 'رقم MMSI',
+            'vessel_name': 'اسم السفينة',
+            'vessel_type': 'النوع',
+            'flag_country': 'دولة العلم',
+            'destination': 'الوجهة',
+            'speed_knots': 'السرعة (عقدة)',
+            'nav_status': 'الحالة الملاحية',
+            'last_signal_at': 'آخر إشارة',
+        })
         st.dataframe(
-            df_v[['mode_badge', 'mmsi', 'vessel_name', 'vessel_type', 'flag_country', 'destination', 'speed_knots', 'nav_status', 'last_signal_at']].rename(columns={'mode_badge': 'حالة الإشارة'}),
+            df_v_display,
             use_container_width=True,
-            hide_index=True
+            hide_index=True,
+            column_config={
+                "حالة الإشارة": st.column_config.TextColumn("حالة الإشارة", width="small"),
+                "رقم MMSI": st.column_config.NumberColumn("رقم MMSI", format="%d", width="small"),
+                "اسم السفينة": st.column_config.TextColumn("اسم السفينة", width="medium"),
+                "النوع": st.column_config.TextColumn("النوع", width="medium"),
+                "دولة العلم": st.column_config.TextColumn("دولة العلم", width="small"),
+                "الوجهة": st.column_config.TextColumn("الوجهة", width="small"),
+                "السرعة (عقدة)": st.column_config.NumberColumn("السرعة (عقدة)", format="%.1f", width="small"),
+                "الحالة الملاحية": st.column_config.TextColumn("الحالة الملاحية", width="medium"),
+                "آخر إشارة": st.column_config.TextColumn("آخر إشارة", width="medium"),
+            }
         )
     else:
         st.warning("لا توجد بيانات سفن متوفرة حالياً.")
@@ -2098,9 +2172,11 @@ elif menu == "عن المنصة ومنهجية معطى":
 
     ---
 
-    ### 🛠️ مصادر الرصد العلني المجانية المدمجة:
-    * **Google News RSS Feeds:** شؤون اليمن، أمن البحر الأحمر، مضيق باب المندب، حركة موانئ الحديدة وعدن.
-    * **وكالات الأنباء الدولية الحرة:** BBC Arabic، DW Arabic، الخلاصات الإقليمية.
-    * **البرقيات الملاحية المفتوحة:** UKMTO، EUNAVFOR Aspides، نشرات سلامة السفن.
-    * **الرادار البحري المفتوح (Google Earth & AIS):** تتبع AIS لكافة القطع البحرية وناقلات الطاقة وسفن الحبوب والإغاثة على خريطة قوقل إيرث التفاعلية.
+    ### 🛠️ مصادر الرصد العلني المجانية المدمجة (19 مصدراً + رادار AIS):
+    * **المصادر اليمنية المباشرة (8 خلاصات بدرجة ثقة 90):** سبأ نت، عدن الغد، الموقع بوست، المشهد اليمني، يمن مونيتور، يمن شباب نت، يمن برس وعدن حرة.
+    * **المصادر البحرية والأمنية والإغاثية الدولية (بدرجة ثقة 70–85):** The Maritime Executive، gCaptain، USNI News، Naval News، Splash247، ومرصد الشؤون الإنسانية في اليمن (ReliefWeb).
+    * **خلاصات المراقبة الإقليمية:** Google News (شؤون اليمن، البحر الأحمر، باب المندب، الموانئ، التحالفات البحرية) وBBC Arabic.
+    * **فلتر الصلة اليمنية (`Yemen Relevance Filter`):** يُطبَّق حصرياً على قسم `سياسي/عام` لمنع تسرب الأخبار الفنية والتقنية والرياضية غير اليمنية وعزلها في سجل المرفوضات (`rejected_news`).
+    * **الرادار البحري المفتوح (`Google Earth & AISStream.io`):** تتبع حركة السفن وناقلات الطاقة وسفن الإغاثة على خريطة قوقل إيرث التفاعلية (بث حي `🟢 حي مباشر` أو محاكاة `🟡 محاكاة`).
+    * **الذاكرة السحابية الدائمة (`Turso / SQLite`):** حفظ آمن ومستمر للأحداث والسفن والمرفوضات مع منع التكرار ببصمة `SHA-256`.
     """)
