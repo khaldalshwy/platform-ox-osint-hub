@@ -344,6 +344,14 @@ for _pt in PROPAGANDA_TERMS:
 for _wt in sorted(WESTERN_TERMS):
     if _wt not in CONTEXT_KEYWORDS:
         CONTEXT_KEYWORDS.append(_wt)
+# دمج المصطلحات العسكرية الميدانية الموسعة (عربي + إنجليزي) في CONTEXT_KEYWORDS بدون تكرار (الخطوة 4)
+try:
+    from filters.military_terms import get_all_military_field_keywords
+    for _mkw in get_all_military_field_keywords():
+        if _mkw not in CONTEXT_KEYWORDS:
+            CONTEXT_KEYWORDS.append(_mkw)
+except Exception:
+    pass
 
 # قائمة المواقع اليمنية الحقيقية مرتبة من الأكثر تحديداً (الموانئ والمدن) إلى الأعم
 ORDERED_YEMEN_LOCATIONS: List[str] = [

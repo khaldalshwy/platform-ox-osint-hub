@@ -1075,10 +1075,15 @@ class ReportGenerator:
 
     def _generate_military_field_analysis(self, events: List[Dict[str, Any]]) -> Dict[str, List[str]]:
         """
-        الخطوة 2: يحلل الأحداث العسكرية اليمنية فقط (بعد استبعاد أحداث السودان وسوريا ومصر وليبيا والبحرين)
-        ويستخرج 8 عناوين ميدانية بجمل ذكية نظيفة وموحدة المصطلحات.
+        الخطوة 2: يحلل الأحداث العسكرية اليمنية فقط باستخدام قاموس MILITARY_FIELD_TERMS الموسع (عربي + إنجليزي)
+        بعد استبعاد أحداث السودان وسوريا ومصر وليبيا والبحرين، ويستخرج 8 عناوين ميدانية دقيقة.
         """
         from filters.yemen_relevance_filter import is_yemen_relevant, extract_yemen_location
+        from filters.military_terms import MILITARY_FIELD_TERMS
+
+        def _combine_terms(cat_key: str) -> List[str]:
+            d = MILITARY_FIELD_TERMS.get(cat_key, {})
+            return list(d.get("ar", [])) + list(d.get("en", []))
 
         fields: Dict[str, List[str]] = {
             "التقدمات": [],
@@ -1092,13 +1097,13 @@ class ReportGenerator:
         }
 
         keywords_map = {
-            "التقدمات": ["تقدم", "سيطرة", "استعادة", "تحرير", "تمكنت"],
-            "الانسحابات": ["انسحاب", "تراجع", "انكفاء"],
-            "الجبهات": ["جبهة", "محور", "خطوط التماس"],
-            "المواجهات": ["مواجهات", "قتال", "معارك"],
+            "التقدمات": _combine_terms("ADVANCES") + _combine_terms("FIELD_INDICATORS") + ["تقدم", "سيطرة", "استعادة", "تحرير", "تمكنت"],
+            "الانسحابات": _combine_terms("WITHDRAWALS") + _combine_terms("COLLAPSES") + ["انسحاب", "تراجع", "انكفاء"],
+            "الجبهات": ["جبهة", "محور", "خطوط التماس"] + _combine_terms("COLLAPSES"),
+            "المواجهات": ["مواجهات", "قتال", "معارك"] + _combine_terms("FAILURES"),
             "الاشتباكات": ["اشتباك", "اشتباكات"],
-            "التطهير": ["تطهير", "تمشيط", "إزالة ألغام"],
-            "توقفات_المواجهات": ["هدنة", "وقف إطلاق النار"],
+            "التطهير": _combine_terms("CLEARING") + ["تطهير", "تمشيط", "إزالة ألغام"],
+            "توقفات_المواجهات": ["هدنة", "وقف إطلاق النار", "وقف الأعمال القتالية", "خفض التصعيد", "تسوية سياسية"],
         }
 
         non_yemen_markers = (
@@ -1106,7 +1111,6 @@ class ReportGenerator:
             "مصر", "القاهرة", "ليبيا", "طرابلس", "بنغازي", "البحرين", "المنامة",
             "أوكرانيا", "روسيا", "غزة", "رفح", "لبنان"
         )
-        foreign_noise = ("BBC", "CNN", "Reuters", "AFP", "AP", "Sky News")
 
         seen_per_field: Dict[str, set] = {k: set() for k in fields}
         yemeni_locations: List[str] = []
@@ -1117,7 +1121,7 @@ class ReportGenerator:
             cleaned_txt = str(event.get("cleaned_content", "") or "")
             combined = f"{title_txt} {raw_txt} {cleaned_txt}".strip()
 
-            # 2.1 فلترة الأحداث اليمنية فقط واستبعاد غير اليمني (السودان/سوريا/مصر/ليبيا/البحرين)
+            # فلترة الأحداث اليمنية فقط واستبعاد غير اليمني (السودان/سوريا/مصر/ليبيا/البحرين)
             rel = is_yemen_relevant(title_txt, raw_txt)
             if not rel.accepted:
                 continue
@@ -1128,16 +1132,15 @@ class ReportGenerator:
             if y_loc and y_loc != "غير محدد":
                 yemeni_locations.append(y_loc)
 
-            # 2.2 تقسيم ذكي للجمل (>= 20 حرفاً وبدون كلمات أجنبية)
+            # تقسيم ذكي للجمل واستخراج باستخدام الكلمات العربية والإنجليزية معاً
             raw_sentences = re.split(r'[.\n!؟|]+', f"{title_txt}. {raw_txt}")
             for field, keywords in keywords_map.items():
                 for sent in raw_sentences:
                     s_clean = re.sub(r'\s+', ' ', sent).strip(" -–—:")
                     if len(s_clean) < 20:
                         continue
-                    if any(fn.lower() in s_clean.lower() for fn in foreign_noise):
-                        continue
-                    if any(kw in s_clean for kw in keywords):
+                    s_lower = s_clean.lower()
+                    if any((kw.lower() in s_lower if kw.isascii() else kw in s_clean) for kw in keywords):
                         s_norm = _apply_terminology_standards(s_clean)[:220]
                         if s_norm not in seen_per_field[field]:
                             seen_per_field[field].add(s_norm)

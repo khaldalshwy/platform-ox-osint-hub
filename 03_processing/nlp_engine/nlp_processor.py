@@ -9,6 +9,7 @@ if _PROCESSING_DIR not in sys.path:
     sys.path.insert(0, _PROCESSING_DIR)
 
 from filters.yemen_relevance_filter import match_whole_term, YEMEN_CORE_ENTITIES, _clean_html_and_urls
+from filters.military_terms import get_all_military_field_keywords
 
 ARABIC_STOPWORDS = {
     "في", "من", "على", "إلى", "الى", "عن", "مع", "هذا", "هذه", "التي", "الذي",
@@ -61,6 +62,9 @@ class NLPProcessor:
         ]
         # قاموس الشخصيات والقيادات المستورد من فلتر الصلة اليمنية (التحسين 4.1)
         self.persons_lexicon = list(YEMEN_CORE_ENTITIES.get("persons_and_leaders", []))
+        # قاموس العمليات والتغيرات الميدانية العسكرية بدون تكرار (الخطوة 3)
+        existing_all = set(self.locations_lexicon + self.orgs_lexicon + self.vessels_lexicon + self.weapons_lexicon + self.persons_lexicon)
+        self.military_operations_lexicon = [kw for kw in get_all_military_field_keywords() if kw not in existing_all]
 
     def clean_arabic_text(self, text: str) -> str:
         """تنظيف النص وإزالة الروابط وعلامات التشكيل وتوحيد الحروف"""
@@ -110,6 +114,12 @@ class NLPProcessor:
             if person not in seen and match_whole_term(text, person):
                 seen.add(person)
                 entities.append({"text": person, "type": "PERSON", "confidence": 0.93})
+
+        # رصد المصطلحات والعمليات الميدانية العسكرية (MILITARY_OP - الخطوة 3)
+        for mop in self.military_operations_lexicon:
+            if mop not in seen and match_whole_term(text, mop):
+                seen.add(mop)
+                entities.append({"text": mop, "type": "MILITARY_OP", "confidence": 0.91})
 
         return entities
 

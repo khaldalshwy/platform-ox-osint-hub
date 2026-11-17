@@ -7,6 +7,9 @@ BOOLEAN_QUERIES: Dict[str, str] = {
     "western_clashes": '(Houthis OR Yemen) AND (offensive OR clashes OR airstrikes OR "territorial gains" OR ceasefire) -sport -football',
     "israeli_coverage": '(Houthis OR Yemen) AND (IDF OR Eilat OR Arrow OR "ballistic missile" OR Hodeidah OR Sanaa)',
     "maritime_red_sea": '("Red Sea" OR "Bab-el-Mandeb" OR "Gulf of Aden") AND (Houthis OR shipping OR vessel OR CENTCOM OR UKMTO)',
+    "military_advances_ar": '("تقدم ميداني" OR "سيطرة نارية" OR "سقوط جبهة" OR "انهيار دفاعات" OR "تطهير مواقع") AND ("اليمن" OR "مأرب" OR "تعز" OR "الحديدة" OR "الضالع" OR "لحج")',
+    "military_withdrawals_ar": '("انسحاب تكتيكي" OR "إعادة تموضع" OR "كسر زحف" OR "صد هجوم" OR "كمين محكم") AND ("اليمن" OR "جبهة" OR "محور")',
+    "military_changes_en": '("Yemen" OR "Houthis") AND ("territorial gains" OR "seized control" OR "tactical withdrawal" OR "frontlines" OR "repelled")',
 }
 
 # ==============================================================================
