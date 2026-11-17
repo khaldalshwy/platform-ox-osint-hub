@@ -7,6 +7,8 @@ import sys
 import glob
 import json
 import math
+import hmac
+import logging
 import html as html_lib
 import datetime
 
@@ -56,6 +58,129 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="auto"
 )
+
+# ==============================================================================
+# نظام الحماية بكلمة مرور (Password Protection Gate)
+# ==============================================================================
+def _get_app_password() -> str:
+    """قراءة كلمة المرور من st.secrets أو متغيرات البيئة، مع تحذير عند استخدام الافتراضية."""
+    secret_pw = ""
+    try:
+        if hasattr(st, "secrets") and "APP_PASSWORD" in st.secrets:
+            secret_pw = str(st.secrets.get("APP_PASSWORD") or "").strip()
+    except Exception:
+        secret_pw = ""
+    if not secret_pw:
+        secret_pw = os.environ.get("APP_PASSWORD", "").strip()
+    if not secret_pw:
+        logging.warning(
+            "[SECURITY WARNING] APP_PASSWORD غير مضبوط في st.secrets! يتم استخدام القيمة الافتراضية المؤقتة؛ يرجى تغييره في Streamlit Cloud Secrets."
+        )
+        return "platformox2026"
+    return secret_pw
+
+
+def _render_login_gate():
+    """عرض صفحة تسجيل دخول متجاوبة بالثيم الأبيض الثلجي ومنع عرض أي محتوى قبل التحقق."""
+    if st.session_state.get("authenticated", False):
+        return
+
+    logo_src = ICON_SVG_PATH if os.path.exists(ICON_SVG_PATH) else (ICON_PNG_PATH if os.path.exists(ICON_PNG_PATH) else "")
+    logo_b64_img = ""
+    if logo_src:
+        try:
+            with open(logo_src, "rb") as f:
+                raw_b64 = base64.b64encode(f.read()).decode("utf-8")
+            mime_t = "image/svg+xml" if logo_src.endswith(".svg") else "image/png"
+            logo_b64_img = f'<img src="data:{mime_t};base64,{raw_b64}" alt="Platform OX" style="width:84px;height:84px;object-fit:contain;margin-bottom:12px;" />'
+        except Exception:
+            pass
+
+    st.markdown("""
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap');
+        section[data-testid="stSidebar"] { display: none !important; }
+        .stApp, [data-testid="stAppViewContainer"] {
+            background: linear-gradient(180deg, #ffffff 0%, #f8fafc 60%, #f1f5f9 100%) !important;
+            font-family: 'Cairo', sans-serif !important;
+        }
+        .login-card-header {
+            max-width: 440px;
+            margin: 2.5rem auto 1rem auto;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 18px;
+            padding: 28px 22px 18px 22px;
+            text-align: center;
+            box-shadow: 0 10px 32px rgba(15, 23, 42, 0.08);
+            direction: rtl;
+        }
+        .login-title {
+            margin: 0;
+            color: #0f172a;
+            font-size: clamp(1.25rem, 3vw, 1.6rem);
+            font-weight: 900;
+        }
+        .login-sub {
+            margin-top: 6px;
+            color: #475569;
+            font-size: 0.92rem;
+            font-weight: 600;
+        }
+        div[data-testid="stForm"] {
+            max-width: 440px !important;
+            margin: 0 auto !important;
+            background: #ffffff !important;
+            border: 1px solid #e2e8f0 !important;
+            border-radius: 16px !important;
+            padding: 18px 22px 22px 22px !important;
+            box-shadow: 0 8px 26px rgba(15, 23, 42, 0.06) !important;
+            direction: rtl !important;
+        }
+        div[data-testid="stForm"] button[kind="primaryFormSubmit"],
+        div[data-testid="stForm"] button {
+            background-color: #1E88E5 !important;
+            border-color: #1E88E5 !important;
+            color: #ffffff !important;
+            font-weight: 800 !important;
+            min-height: 46px !important;
+            border-radius: 10px !important;
+            width: 100% !important;
+        }
+        div[data-testid="stForm"] button:hover {
+            background-color: #1565C0 !important;
+            border-color: #1565C0 !important;
+        }
+        @media (max-width: 480px) {
+            .login-card-header { margin: 1.2rem auto 0.75rem auto; padding: 20px 14px 14px 14px; }
+            div[data-testid="stForm"] { padding: 14px 14px 18px 14px !important; }
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown(f"""
+    <div class="login-card-header">
+        {logo_b64_img if logo_b64_img else '<div style="font-size:48px;">🛡️</div>'}
+        <h1 class="login-title">Platform OX — OSINT Hub</h1>
+        <p class="login-sub">بوابة الدخول الآمنة لمنصة الرصد العلني والتحليل الاستخباراتي</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    with st.form("platform_ox_login_form", clear_on_submit=False):
+        entered_pw = st.text_input("🔐 كلمة المرور:", type="password", placeholder="أدخل كلمة المرور للدخول")
+        submitted = st.form_submit_button("دخول", use_container_width=True, type="primary")
+        if submitted:
+            expected_pw = _get_app_password()
+            if entered_pw and hmac.compare_digest(entered_pw.strip(), expected_pw):
+                st.session_state["authenticated"] = True
+                st.rerun()
+            else:
+                st.error("كلمة المرور غير صحيحة. حاول مرة أخرى.")
+
+    st.stop()
+
+
+_render_login_gate()
 
 # ==============================================================================
 # إعدادات الواجهة والمظهر (Theme System: Snow White Primary & Dark Secondary)
@@ -1396,6 +1521,10 @@ with st.sidebar:
 
     storage_badge = "☁️ Turso Cloud (SQLite السحابي)" if (hasattr(db, "is_turso_active") and db.is_turso_active()) else "💾 SQLite محلي (Fallback)"
     st.caption(f"🗄️ **محرك التخزين النشط:** `{storage_badge}`")
+    st.markdown("---")
+    if st.button("🚪 تسجيل خروج", use_container_width=True):
+        st.session_state.pop("authenticated", None)
+        st.rerun()
 
 # استرجاع مؤشرات الأداء والبيانات الأساسية (مع تهيئة أولية تلقائية عند التشغيل لأول مرة على السحابة)
 kpis = db.get_kpis()
